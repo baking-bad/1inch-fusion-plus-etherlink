@@ -129,11 +129,20 @@ describe('Etherlink Fusion+ Integration', () => {
     }
 
     async function setupEtherlinkChain(): Promise<void> {
-        // Fund order manager with ETH and tokens for conversions
+        // Fund order manager with XTZ and tokens for conversions
         dstOrderManagerContract = await Wallet.fromAddress(dst.orderManager!, dst.provider)
 
-        // Transfer ETH to order manager for operations
-        await dstChainResolver.transfer(dst.orderManager!, parseEther('10'))
+        // Transfer XTZ to order manager for operations from donor
+        const xtzDonor = config.chain.destination.tokens.XTZ?.donor || (await dstChainResolver.getAddress())
+
+        if (xtzDonor !== (await dstChainResolver.getAddress())) {
+            // If we have a specific XTZ donor, use it
+            const xtzDonorWallet = await Wallet.fromAddress(xtzDonor, dst.provider)
+            await xtzDonorWallet.transfer(dst.orderManager!, parseEther('10'))
+        } else {
+            // Otherwise use resolver as donor
+            await dstChainResolver.transfer(dst.orderManager!, parseEther('10'))
+        }
 
         // If we have USDC on Etherlink, fund it too
         const etherlinkUSDC = config.chain.destination.tokens.USDC
@@ -150,12 +159,24 @@ describe('Etherlink Fusion+ Integration', () => {
     async function getBalances(srcToken: string, dstToken: string): Promise<BalanceResult> {
         return {
             src: {
-                user: await srcChainUser.tokenBalance(srcToken),
-                resolver: await srcResolverContract.tokenBalance(srcToken)
+                user:
+                    srcToken === '0x0000000000000000000000000000000000000000'
+                        ? await src.provider.getBalance(await srcChainUser.getAddress())
+                        : await srcChainUser.tokenBalance(srcToken),
+                resolver:
+                    srcToken === '0x0000000000000000000000000000000000000000'
+                        ? await src.provider.getBalance(await srcResolverContract.getAddress())
+                        : await srcResolverContract.tokenBalance(srcToken)
             },
             dst: {
-                user: await dstChainUser.tokenBalance(dstToken),
-                resolver: await dstOrderManagerContract.tokenBalance(dstToken)
+                user:
+                    dstToken === '0x0000000000000000000000000000000000000000'
+                        ? await dst.provider.getBalance(await dstChainUser.getAddress())
+                        : await dstChainUser.tokenBalance(dstToken),
+                resolver:
+                    dstToken === '0x0000000000000000000000000000000000000000'
+                        ? await dst.provider.getBalance(await dstOrderManagerContract.getAddress())
+                        : await dstOrderManagerContract.tokenBalance(dstToken)
             }
         }
     }
@@ -167,11 +188,11 @@ describe('Etherlink Fusion+ Integration', () => {
     })
 
     describe('Cross-chain swaps with token conversion', () => {
-        it('should swap Ethereum USDC -> Etherlink ETH with conversion', async () => {
-            const ethAddress = '0x0000000000000000000000000000000000000000'
-            const initialBalances = await getBalances(config.chain.source.tokens.USDC.address, ethAddress)
+        it('should swap Ethereum USDC -> Etherlink XTZ with conversion', async () => {
+            const xtzAddress = '0x0000000000000000000000000000000000000000' // Native XTZ
+            const initialBalances = await getBalances(config.chain.source.tokens.USDC.address, xtzAddress)
 
-            // User creates order: USDC on Ethereum -> ETH on Etherlink
+            // User creates order: USDC on Ethereum -> XTZ on Etherlink
             const secret = uint8ArrayToHex(randomBytes(32))
             const order = Sdk.CrossChainOrder.new(
                 new Address(src.escrowFactory),
@@ -179,9 +200,9 @@ describe('Etherlink Fusion+ Integration', () => {
                     salt: Sdk.randBigInt(1000n),
                     maker: new Address(await srcChainUser.getAddress()),
                     makingAmount: parseUnits('100', 6), // 100 USDC
-                    takingAmount: parseEther('0.05'), // 0.05 ETH (after conversion + fees)
+                    takingAmount: parseEther('0.05'), // 0.05 XTZ (after conversion + fees)
                     makerAsset: new Address(config.chain.source.tokens.USDC.address),
-                    takerAsset: new Address(ethAddress) // ETH on Etherlink
+                    takerAsset: new Address(xtzAddress) // XTZ on Etherlink
                 },
                 {
                     hashLock: Sdk.HashLock.forSingleFill(secret),
@@ -303,15 +324,15 @@ describe('Etherlink Fusion+ Integration', () => {
             await srcChainResolver.send(resolverContract.withdraw('src', srcEscrowAddress, secret, srcEscrowEvent[0]))
 
             // Step 7: Verify balances
-            const resultBalances = await getBalances(config.chain.source.tokens.USDC.address, ethAddress)
+            const resultBalances = await getBalances(config.chain.source.tokens.USDC.address, xtzAddress)
 
-            // User should have lost USDC and gained ETH
+            // User should have lost USDC and gained XTZ
             expect(initialBalances.src.user - resultBalances.src.user).toBe(order.makingAmount)
             expect(resultBalances.dst.user).toBeGreaterThan(initialBalances.dst.user)
 
             console.log('Conversion successful:', {
                 usdcLost: (initialBalances.src.user - resultBalances.src.user).toString(),
-                ethGained: (resultBalances.dst.user - initialBalances.dst.user).toString()
+                xtzGained: (resultBalances.dst.user - initialBalances.dst.user).toString()
             })
         })
 
@@ -325,8 +346,6 @@ describe('Etherlink Fusion+ Integration', () => {
 
                 return
             }
-
-            const initialBalances = await getBalances(ethAddress, usdcAddress)
 
             // Calculate bridge costs
             const swapAmount = parseEther('1') // 1 ETH
@@ -414,8 +433,8 @@ describe('Etherlink Fusion+ Integration', () => {
         })
 
         it('should handle cancellation with token conversion back', async () => {
-            const ethAddress = '0x0000000000000000000000000000000000000000'
-            const initialBalances = await getBalances(config.chain.source.tokens.USDC.address, ethAddress)
+            const xtzAddress = '0x0000000000000000000000000000000000000000' // Native XTZ
+            const initialBalances = await getBalances(config.chain.source.tokens.USDC.address, xtzAddress)
 
             // Create order that will be cancelled
             const secret = uint8ArrayToHex(randomBytes(32))
@@ -537,7 +556,7 @@ describe('Etherlink Fusion+ Integration', () => {
             await srcChainResolver.send(resolverContract.cancel('src', srcEscrowAddress, srcEscrowEvent[0]))
 
             // Verify balances are restored
-            const resultBalances = await getBalances(config.chain.source.tokens.USDC.address, ethAddress)
+            const resultBalances = await getBalances(config.chain.source.tokens.USDC.address, xtzAddress)
 
             // Balances should be approximately equal (minus gas costs)
             expect(resultBalances.src.user).toBeCloseTo(initialBalances.src.user, -4) // Allow for gas differences

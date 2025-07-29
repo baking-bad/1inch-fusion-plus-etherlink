@@ -42,7 +42,8 @@ export const config = {
         },
         destination: {
             // Etherlink Testnet (Ghostnet)
-            chainId: 128123,
+            // chainId: 128123,
+            chainId: Sdk.NetworkEnum.BINANCE,
             url: fromEnv.DST_CHAIN_RPC || 'https://node.ghostnet.etherlink.com',
             createFork: fromEnv.DST_CHAIN_CREATE_FORK,
             limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65', // Deploy 1inch LOP on Etherlink or use mock
@@ -59,7 +60,7 @@ export const config = {
                 XTZ: {
                     address: '0x0000000000000000000000000000000000000000',
                     isNative: true,
-                    donor: '0xA122c1Bf16fd52B7ff38DB0370A5915dB114dd60',
+                    donor: '0xA122c1Bf16fd52B7ff38DB0370A5915dB114dd60'
                 },
                 // USDC on Etherlink (if exists)
                 USDC: {

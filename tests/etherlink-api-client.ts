@@ -127,7 +127,8 @@ export class EtherlinkApiClient {
                 params.append('apikey', this.apiKey)
             }
 
-            const url = `${this.apiUrl}/v6.0/${this.chainId}/quote?${params}`
+            const url = `${this.apiUrl}/api/v6.1/128123/quote?${params}`
+            console.log(url)
 
             const response = await globalThis.fetch(url, {
                 method: 'GET',
@@ -186,7 +187,7 @@ export class EtherlinkApiClient {
                 params.append('apikey', this.apiKey)
             }
 
-            const url = `${this.apiUrl}/v6.0/${this.chainId}/swap?${params}`
+            const url = `${this.apiUrl}/v6.1/128123/swap?${params}`
 
             const response = await globalThis.fetch(url, {
                 method: 'GET',
@@ -308,7 +309,7 @@ export class EtherlinkApiClient {
      */
     async getSupportedTokens(): Promise<any[]> {
         try {
-            const url = `${this.apiUrl}/v6.0/${this.chainId}/tokens`
+            const url = `${this.apiUrl}/v6.1/128123/tokens`
 
             const response = await globalThis.fetch(url, {
                 method: 'GET',
