@@ -17,12 +17,9 @@ import {IEscrow} from "../lib/cross-chain-swap/contracts/interfaces/IEscrow.sol"
 import {ImmutablesLib} from "../lib/cross-chain-swap/contracts/libraries/ImmutablesLib.sol";
 
 /**
- * @title Sample implementation of a Resolver contract for cross-chain swap.
- * @dev It is important when deploying an escrow on the source chain to send the safety deposit and deploy the escrow in the same
- * transaction, since the address of the escrow depends on the block.timestamp.
- * You can find sample code for this in the {ResolverExample-deploySrc}.
- *
- * @custom:security-contact security@1inch.io
+ * @title Resolver contract for cross-chain swap with arbitrary calls support.
+ * @dev Extends original Resolver with ability to execute arbitrary calls before/after main operations.
+ * This enables integration with DEX aggregators and other protocols.
  */
 contract Resolver is Ownable {
     using ImmutablesLib for IBaseEscrow.Immutables;
@@ -42,7 +39,7 @@ contract Resolver is Ownable {
     receive() external payable {} // solhint-disable-line no-empty-blocks
 
     /**
-     * @notice See {IResolverExample-deploySrc}.
+     * @notice Deploy source escrow (same as original)
      */
     function deploySrc(
         IBaseEscrow.Immutables calldata immutables,
@@ -68,30 +65,84 @@ contract Resolver is Ownable {
     }
 
     /**
-     * @notice See {IResolverExample-deployDst}.
+     * @notice Deploy destination escrow with optional arbitrary calls
+     * @param targets Array of contract addresses to call
+     * @param callsData Array of call data for each target
+     * @param dstImmutables Destination escrow immutables
+     * @param srcCancellationTimestamp Source cancellation timestamp
      */
-    function deployDst(IBaseEscrow.Immutables calldata dstImmutables, uint256 srcCancellationTimestamp) external onlyOwner payable {
+    function deployDst(
+        address[] calldata targets,
+        bytes[] calldata callsData,
+        IBaseEscrow.Immutables calldata dstImmutables,
+        uint256 srcCancellationTimestamp
+    ) external onlyOwner payable {
+        // Execute arbitrary calls first (swaps, approvals, etc.)
+        if (targets.length > 0) {
+            arbitraryCalls(targets, callsData);
+        }
+
+        // Then create destination escrow
         _FACTORY.createDstEscrow{value: msg.value}(dstImmutables, srcCancellationTimestamp);
     }
 
-    function withdraw(IEscrow escrow, bytes32 secret, IBaseEscrow.Immutables calldata immutables) external {
+    /**
+     * @notice Withdraw from escrow with optional arbitrary calls
+     * @param escrow Escrow contract address
+     * @param secret Secret for withdrawal
+     * @param immutables Escrow immutables
+     * @param targets Array of contract addresses to call after withdrawal
+     * @param callsData Array of call data for each target
+     */
+    function withdraw(
+        IEscrow escrow,
+        bytes32 secret,
+        IBaseEscrow.Immutables calldata immutables,
+        address[] calldata targets,
+        bytes[] calldata callsData
+    ) external {
+        // Withdraw first
         escrow.withdraw(secret, immutables);
-    }
 
-
-    function cancel(IEscrow escrow, IBaseEscrow.Immutables calldata immutables) external {
-        escrow.cancel(immutables);
+        // Then execute arbitrary calls (swaps, etc.)
+        if (targets.length > 0) {
+            arbitraryCalls(targets, callsData);
+        }
     }
 
     /**
-     * @notice See {IResolverExample-arbitraryCalls}.
+     * @notice Cancel escrow with optional arbitrary calls
+     * @param escrow Escrow contract address
+     * @param immutables Escrow immutables
+     * @param targets Array of contract addresses to call after cancellation
+     * @param callsData Array of call data for each target
      */
-    function arbitraryCalls(address[] calldata targets, bytes[] calldata arguments) external onlyOwner {
+    function cancel(
+        IEscrow escrow,
+        IBaseEscrow.Immutables calldata immutables,
+        address[] calldata targets,
+        bytes[] calldata callsData
+    ) external {
+        // Cancel first
+        escrow.cancel(immutables);
+
+        // Then execute arbitrary calls (reverse swaps, etc.)
+        if (targets.length > 0) {
+            arbitraryCalls(targets, callsData);
+        }
+    }
+
+    /**
+     * @notice Execute arbitrary calls to external contracts
+     * @param targets Array of contract addresses to call
+     * @param callsData Array of call data for each target
+     */
+    function arbitraryCalls(address[] calldata targets, bytes[] calldata callsData) public onlyOwner {
         uint256 length = targets.length;
-        if (targets.length != arguments.length) revert LengthMismatch();
+        if (targets.length != callsData.length) revert LengthMismatch();
         for (uint256 i = 0; i < length; ++i) {
             // solhint-disable-next-line avoid-low-level-calls
-            (bool success,) = targets[i].call(arguments[i]);
+            (bool success,) = targets[i].call(callsData[i]);
             if (!success) RevertReasonForwarder.reRevert();
         }
     }
