@@ -16,24 +16,23 @@ export interface QuoteRequest {
 }
 
 export interface QuoteResponse {
-    fromToken: {
+    srcToken: {
         symbol: string
         name: string
         decimals: number
         address: string
         logoURI: string
     }
-    toToken: {
+    dstToken: {
         symbol: string
         name: string
         decimals: number
         address: string
         logoURI: string
     }
-    toAmount: string
-    fromAmount: string
+    dstAmount: string
     protocols: any[]
-    estimatedGas: number
+    gas: number
 }
 
 export interface SwapParamsRequest extends QuoteRequest {
@@ -46,10 +45,10 @@ export interface SwapParamsRequest extends QuoteRequest {
 }
 
 export interface SwapParamsResponse {
-    params: string // закодированная calldata для swap
-    router: string // адрес роутера
-    dstAmount: string // ожидаемый выход
-    gas: number // газ лимит
+    params: string // encoded calldata for swap
+    router: string // router address
+    dstAmount: string // expected output amount
+    gas: number // gas limit
 }
 
 export class AggregatorApiClient {
