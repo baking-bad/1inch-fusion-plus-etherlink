@@ -15,26 +15,6 @@ export interface TokenConfig {
     }
 }
 
-export interface SwapParams {
-    amountIn: bigint
-    amountOutMin: bigint
-    to: string
-    deadline: bigint
-    params: bigint
-    tokens: Array<{
-        tokenAddress: string
-        isNative: boolean
-    }>
-    steps: Array<{
-        routerAddress: string
-        packedData: bigint
-    }>
-    referrerInfo: {
-        referrer: string
-        feeAmount: bigint
-    }
-}
-
 export class EtherlinkResolver extends Resolver {
     private readonly routerConfig: RouterConfig
 
@@ -69,36 +49,18 @@ export class EtherlinkResolver extends Resolver {
     }
 
     public async getSwapParams(request: SwapParamsRequest): Promise<{
-        swapParams: SwapParams
         routerAddress: string
+        swapCalldata: string
         expectedOutput: bigint
         gasEstimate: number
     }> {
         const apiResponse = await this.apiClient.getSwapParams(request)
 
         return {
-            swapParams: this.apiClient.convertSwapParamsToResolverFormat(apiResponse),
             routerAddress: apiResponse.router,
+            swapCalldata: apiResponse.params,
             expectedOutput: BigInt(apiResponse.dstAmount),
             gasEstimate: apiResponse.gas
-        }
-    }
-
-    public async prepareSwapCall(swapParams: SwapParams): Promise<ArbitraryCall> {
-        const swapCalldata = this.routerConfig.interface.encodeFunctionData('swap', [
-            swapParams.amountIn,
-            swapParams.amountOutMin,
-            swapParams.to,
-            swapParams.deadline,
-            swapParams.params,
-            swapParams.tokens,
-            swapParams.steps,
-            swapParams.referrerInfo
-        ])
-
-        return {
-            target: this.routerConfig.address,
-            data: swapCalldata
         }
     }
 
@@ -135,10 +97,13 @@ export class EtherlinkResolver extends Resolver {
             slippage
         }
 
-        const {swapParams, routerAddress, expectedOutput, gasEstimate} = await this.getSwapParams(request)
+        const {routerAddress, swapCalldata, expectedOutput, gasEstimate} = await this.getSwapParams(request)
 
         const approveCall = await this.prepareApproveCall(src, routerAddress, BigInt(amount))
-        const swapCall = await this.prepareSwapCall(swapParams)
+        const swapCall: ArbitraryCall = {
+            target: routerAddress,
+            data: swapCalldata
+        }
 
         return {
             approveCall,

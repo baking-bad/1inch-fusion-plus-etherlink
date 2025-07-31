@@ -46,36 +46,10 @@ export interface SwapParamsRequest extends QuoteRequest {
 }
 
 export interface SwapParamsResponse {
-    params: {
-        amountIn: string
-        amountOutMin: string
-        to: string
-        deadline: string
-        params: string
-        tokens: Array<{
-            tokenAddress: string
-            isNative: boolean
-        }>
-        steps: Array<{
-            routerAddress: string
-            packedData: string
-        }>
-        referrerInfo: {
-            referrer: string
-            feeAmount: string
-        }
-        gas?: string | null
-        gasPrice?: string | null
-        fromAddress?: string | null
-        nonce?: string | null
-        maxFeePerGas?: string | null
-        maxPriorityFeePerGas?: string | null
-        transactionType?: string | null
-        accessList?: any | null
-    }
-    router: string
-    dstAmount: string
-    gas: number
+    params: string // закодированная calldata для swap
+    router: string // адрес роутера
+    dstAmount: string // ожидаемый выход
+    gas: number // газ лимит
 }
 
 export class AggregatorApiClient {
@@ -161,42 +135,5 @@ export class AggregatorApiClient {
         }
 
         return response.json() as Promise<SwapParamsResponse>
-    }
-
-    convertSwapParamsToResolverFormat(apiResponse: SwapParamsResponse): {
-        amountIn: bigint
-        amountOutMin: bigint
-        to: string
-        deadline: bigint
-        params: bigint
-        tokens: Array<{
-            tokenAddress: string
-            isNative: boolean
-        }>
-        steps: Array<{
-            routerAddress: string
-            packedData: bigint
-        }>
-        referrerInfo: {
-            referrer: string
-            feeAmount: bigint
-        }
-    } {
-        return {
-            amountIn: BigInt(apiResponse.params.amountIn),
-            amountOutMin: BigInt(apiResponse.params.amountOutMin),
-            to: apiResponse.params.to,
-            deadline: BigInt(apiResponse.params.deadline),
-            params: BigInt(apiResponse.params.params),
-            tokens: apiResponse.params.tokens,
-            steps: apiResponse.params.steps.map((step) => ({
-                routerAddress: step.routerAddress,
-                packedData: BigInt(step.packedData)
-            })),
-            referrerInfo: {
-                referrer: apiResponse.params.referrerInfo.referrer,
-                feeAmount: BigInt(apiResponse.params.referrerInfo.feeAmount)
-            }
-        }
     }
 }
