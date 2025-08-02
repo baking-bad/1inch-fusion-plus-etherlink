@@ -21,7 +21,21 @@ const ConfigSchema = z.object({
     ETHERLINK_CHAIN_CREATE_FORK: bool.default('true'),
     ETHERLINK_ROUTER_ADDRESS: z.string().default('0x0000000000000000000000000000000000000000'),
     ETHERLINK_API_URL: z.string().default('https://api.etherlink.your-domain.com'),
-    ETHERLINK_API_KEY: z.string().default('')
+    ETHERLINK_API_KEY: z.string().default(''),
+
+    // Test keys
+    TEST_ETH_USER_PK: z.string().default('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'),
+    TEST_ETH_RESOLVER_PK: z.string().default('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'),
+    TEST_ETH_OWNER_PK: z.string().default('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'),
+    TEST_BSC_USER_PK: z.string().default('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'),
+    TEST_BSC_RESOLVER_PK: z.string().default('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'),
+    TEST_BSC_OWNER_PK: z.string().default('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'),
+    TEST_ETHERLINK_USER_PK: z.string().default('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'),
+    TEST_ETHERLINK_RESOLVER_PK: z
+        .string()
+        .default('0x1ab0f706d505dd4f4c8096e78b8509f15be853ca7c52dbb975ac889c04b9fe3f'),
+    TEST_ETHERLINK_OWNER_PK: z.string().default('0x1ab0f706d505dd4f4c8096e78b8509f15be853ca7c52dbb975ac889c04b9fe3f'),
+    TEST_TIMEOUT_MS: z.string().transform(Number).default('180000')
 })
 
 const fromEnv = ConfigSchema.parse(process.env)
@@ -40,7 +54,9 @@ export interface ChainConfig {
     createFork: boolean
     limitOrderProtocol: string
     wrappedNative: string
-    ownerPrivateKey: string
+    ownerPk: string
+    userPk: string
+    resolverPk: string
 
     // Etherlink specific (optional)
     etherlinkRouter?: string
@@ -61,7 +77,10 @@ export const config: Record<number, ChainConfig> = {
         createFork: fromEnv.ETH_CHAIN_CREATE_FORK,
         limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65',
         wrappedNative: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-        ownerPrivateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        ownerPk: fromEnv.TEST_ETH_OWNER_PK,
+        userPk: fromEnv.TEST_ETH_USER_PK,
+        resolverPk: fromEnv.TEST_ETH_RESOLVER_PK,
+        etherlinkApiUrl: '',
         tokens: {
             USDC: {
                 address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
@@ -84,7 +103,10 @@ export const config: Record<number, ChainConfig> = {
         createFork: fromEnv.BSC_CHAIN_CREATE_FORK,
         limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65',
         wrappedNative: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-        ownerPrivateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        ownerPk: fromEnv.TEST_BSC_OWNER_PK,
+        userPk: fromEnv.TEST_BSC_USER_PK,
+        resolverPk: fromEnv.TEST_BSC_RESOLVER_PK,
+        etherlinkApiUrl: '',
         tokens: {
             USDC: {
                 address: '0x8965349fb649a33a30cbfda057d8ec2c48abe2a2',
@@ -102,7 +124,9 @@ export const config: Record<number, ChainConfig> = {
         createFork: fromEnv.ETHERLINK_CHAIN_CREATE_FORK,
         limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65',
         wrappedNative: '0xB1Ea698633d57705e93b0E40c1077d46CD6A51d8',
-        ownerPrivateKey: '0x1ab0f706d505dd4f4c8096e78b8509f15be853ca7c52dbb975ac889c04b9fe3f',
+        ownerPk: fromEnv.TEST_ETHERLINK_OWNER_PK,
+        userPk: fromEnv.TEST_ETHERLINK_USER_PK,
+        resolverPk: fromEnv.TEST_ETHERLINK_RESOLVER_PK,
 
         // Etherlink specific
         etherlinkRouter: fromEnv.ETHERLINK_ROUTER_ADDRESS,
@@ -148,6 +172,11 @@ export const config: Record<number, ChainConfig> = {
     }
 } as const
 
+// Test configuration export
+export const testConfig = {
+    timeoutMs: fromEnv.TEST_TIMEOUT_MS
+} as const
+
 // Helper functions
 export function getChainConfig(chainId: number): ChainConfig {
     const chainConfig = config[chainId]
@@ -178,12 +207,4 @@ export function getEtherlinkChains(): number[] {
     return Object.entries(config)
         .filter(([_, cfg]) => cfg.etherlinkRouter)
         .map(([chainId]) => Number(chainId))
-}
-
-// Backward compatibility exports
-export const legacyConfig = {
-    chain: {
-        source: config[Sdk.NetworkEnum.ETHEREUM],
-        destination: config[Sdk.NetworkEnum.BINANCE]
-    }
 }
