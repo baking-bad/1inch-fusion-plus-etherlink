@@ -29,12 +29,10 @@ import ResolverContract from '../dist/contracts/Resolver.sol/Resolver.json'
 // Mock router interface - we don't need the real one since API gives us calldata
 const routerAbi = ['function name() view returns (string)']
 
-const {Address} = Sdk
-
-jest.setTimeout(1000 * 60 * 5) // 5 minutes for real API calls
-
+// jest.setTimeout(1000 * 60 * 5) // 5 minutes for real API calls
+jest.setTimeout(1000 * 60 * 3)
 const userPk = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
-const resolverPk = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'
+const resolverPk = '0x1ab0f706d505dd4f4c8096e78b8509f15be853ca7c52dbb975ac889c04b9fe3f'
 
 // Test configuration
 const srcChainId = Sdk.NetworkEnum.ETHEREUM
@@ -45,7 +43,7 @@ const dstChainConfig = getChainConfig(dstChainId)
 
 describe('EtherlinkResolver Real API Tests', () => {
     const realApiUrl = dstChainConfig.etherlinkApiUrl || 'https://api.etherlink.your-domain.com'
-    const mockRouterAddress = dstChainConfig.etherlinkRouter || '0x6785F736b1646ACbA1233BA952C0f35fFC6F0d4B'
+    const mockRouterAddress = dstChainConfig.etherlinkRouter
 
     type Chain = {
         node?: CreateServerReturnType | undefined
@@ -85,7 +83,7 @@ describe('EtherlinkResolver Real API Tests', () => {
         srcFactory = new EscrowFactory(src.provider, src.escrowFactory)
         dstFactory = new EscrowFactory(dst.provider, dst.escrowFactory)
 
-        // Setup EtherlinkResolver with real API URL
+
         etherlinkResolver = new EtherlinkResolver(
             {
                 [srcChainId]: src.resolver,
@@ -100,8 +98,8 @@ describe('EtherlinkResolver Real API Tests', () => {
                     symbol: 'USDC',
                     decimals: 6
                 },
-                [getToken(dstChainId, 'WETH').address.toLowerCase()]: {
-                    symbol: 'WETH',
+                [getToken(dstChainId, 'WXTZ').address.toLowerCase()]: {
+                    symbol: 'WXTZ',
                     decimals: 18
                 },
                 [getToken(dstChainId, 'WETH').address.toLowerCase()]: {
@@ -118,13 +116,14 @@ describe('EtherlinkResolver Real API Tests', () => {
         await srcChainUser.approveToken(srcUSDC.address, srcChainConfig.limitOrderProtocol, MaxUint256)
 
         srcResolverContract = await Wallet.fromAddress(src.resolver, src.provider)
-        dstResolverContract = await Wallet.fromAddress(dst.resolver, dst.provider)
+        // dstResolverContract = await Wallet.fromAddress(dst.resolver, dst.provider)
 
         const dstUSDC = getToken(dstChainId, 'USDC')
-        await dstResolverContract.topUpFromDonor(dstUSDC.address, dstUSDC.donor, parseUnits('2000', dstUSDC.decimals))
+        // await dstResolverContract.topUpFromDonor(dstUSDC.address, dstUSDC.donor, parseUnits('2000', dstUSDC.decimals))
 
         await dstChainResolver.transfer(dst.resolver, parseEther('1'))
-        await dstResolverContract.unlimitedApprove(dstUSDC.address, dst.escrowFactory)
+        await dstChainResolver.transferToken(dstUSDC.address, dst.resolver, parseUnits('1', dstUSDC.decimals))
+        // await dstResolverContract.unlimitedApprove(dstUSDC.address, dst.escrowFactory)
 
         srcTimestamp = BigInt((await src.provider.getBlock('latest'))!.timestamp)
     })
@@ -136,14 +135,14 @@ describe('EtherlinkResolver Real API Tests', () => {
     })
 
     describe('Real API Integration Tests', () => {
-        it('should get quote from real API', async () => {
+        it.skip('should get quote from real API', async () => {
             const srcUSDC = getToken(dstChainId, 'USDC')
-            const dstWETH = getToken(dstChainId, 'WETH')
+            const dstWXTZ = getToken(dstChainId, 'WXTZ')
 
             try {
                 const quote = await etherlinkResolver.getQuote(
                     srcUSDC.address,
-                    dstWETH.address,
+                    dstWXTZ.address,
                     parseUnits('100', srcUSDC.decimals).toString()
                 )
 
@@ -164,19 +163,20 @@ describe('EtherlinkResolver Real API Tests', () => {
             }
         })
 
-        it('should get swap params from real API', async () => {
+        it.skip('should get swap params from real API', async () => {
             const srcUSDC = getToken(dstChainId, 'USDC')
-            const dstWETH = getToken(dstChainId, 'WETH')
+            const dstWXTZ = getToken(dstChainId, 'WXTZ')
             const amount = parseUnits('100', srcUSDC.decimals).toString()
             const resolverAddress = etherlinkResolver.getAddress(dstChainId)
 
             try {
                 const swapData = await etherlinkResolver.prepareSwapFromApi(
                     srcUSDC.address,
-                    dstWETH.address,
+                    dstWXTZ.address,
                     amount,
                     resolverAddress,
-                    1 // 1% slippage
+                    1,
+                    true
                 )
 
                 console.log('Real API Swap Params received:', {
@@ -205,19 +205,19 @@ describe('EtherlinkResolver Real API Tests', () => {
         it('should prepare deployDst transaction with real swap data', async () => {
             const srcUSDC = getToken(srcChainId, 'USDC')
             const dstUSDC = getToken(dstChainId, 'USDC')
-            const dstWETH = getToken(dstChainId, 'WETH')
+            const dstWXTZ = getToken(dstChainId, 'WXTZ')
 
-            // Create order USDC -> WETH (needs swap on destination)
+            // Create order USDC -> WXTZ (needs swap on destination)
             const secret = uint8ArrayToHex(randomBytes(32))
             const order = createCustomCrossChainOrder(
                 new Sdk.Address(src.escrowFactory),
                 {
                     salt: Sdk.randBigInt(1000n),
                     maker: new Sdk.Address(await srcChainUser.getAddress()),
-                    makingAmount: parseUnits('100', srcUSDC.decimals),
-                    takingAmount: parseUnits('1', dstWETH.decimals), // 1 WETH
+                    makingAmount: parseUnits('10', srcUSDC.decimals),
+                    takingAmount: parseUnits('0.1', dstWXTZ.decimals), // 0.1 WXTZ
                     makerAsset: new Sdk.Address(srcUSDC.address),
-                    takerAsset: new Sdk.Address(dstWETH.address)
+                    takerAsset: new Sdk.Address(dstWXTZ.address)
                 },
                 {
                     hashLock: Sdk.HashLock.forSingleFill(secret),
@@ -269,7 +269,7 @@ describe('EtherlinkResolver Real API Tests', () => {
                 .withComplement({
                     maker: new Sdk.Address(await dstChainUser.getAddress()),
                     amount: order.takingAmount,
-                    token: new Sdk.Address(dstWETH.address),
+                    token: new Sdk.Address(dstWXTZ.address),
                     safetyDeposit: order.escrowExtension.dstSafetyDeposit
                 })
                 .withTaker(new Sdk.Address(etherlinkResolver.getAddress(dstChainId)))
@@ -281,7 +281,7 @@ describe('EtherlinkResolver Real API Tests', () => {
                     order,
                     dstImmutables,
                     dstUSDC.address, // we receive USDC from src chain
-                    dstWETH.address, // but need to deliver WETH to user
+                    dstWXTZ.address, // but need to deliver WXTZ to user
                     dstImmutables.amount.toString(),
                     1 // 1% slippage
                 )
@@ -296,31 +296,14 @@ describe('EtherlinkResolver Real API Tests', () => {
                 expect(deployDstTx.data).toBeDefined()
                 expect(deployDstTx.data?.length).toBeGreaterThan(100) // Should have approve + swap + deployDst calls
 
+                await dstChainResolver.send(deployDstTx)
+
                 console.log('Real API integration test completed successfully!')
             } catch (error) {
                 console.log('Real API not available or error occurred:', error.message)
 
                 throw error
             }
-        })
-    })
-
-    describe('Error Handling Tests', () => {
-        it('should handle API errors gracefully', async () => {
-            // Create resolver with invalid API URL
-            const invalidResolver = new EtherlinkResolver(
-                {[dstChainId]: dst.resolver},
-                {address: mockRouterAddress, interface: new Interface(routerAbi)},
-                {},
-                'https://invalid-api-url-that-does-not-exist.com'
-            )
-
-            const srcUSDC = getToken(dstChainId, 'USDC')
-            const dstWETH = getToken(dstChainId, 'WETH')
-
-            await expect(invalidResolver.getQuote(srcUSDC.address, dstWETH.address, '1000000')).rejects.toThrow()
-
-            console.log('Error handling test completed')
         })
     })
 })

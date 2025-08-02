@@ -81,7 +81,8 @@ export class EtherlinkResolver extends Resolver {
         dst: string,
         amount: string,
         from: string,
-        slippage: number = 1
+        slippage: number = 1,
+        isExactOutput: boolean = false
     ): Promise<{
         approveCall: ArbitraryCall
         swapCall: ArbitraryCall
@@ -94,7 +95,8 @@ export class EtherlinkResolver extends Resolver {
             dst,
             amount,
             from,
-            slippage
+            slippage,
+            isExactOutput
         }
 
         const {routerAddress, swapCalldata, expectedOutput, gasEstimate} = await this.getSwapParams(request)
@@ -126,8 +128,7 @@ export class EtherlinkResolver extends Resolver {
 
         if (this.needsSwap(src, dst)) {
             const from = this.getAddress(order.escrowExtension.dstChainId)
-            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage)
-
+            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, true)
             calls.push(approveCall, swapCall)
         }
 
@@ -148,7 +149,7 @@ export class EtherlinkResolver extends Resolver {
 
         if (this.needsSwap(src, dst)) {
             const from = this.getAddress(chainId)
-            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage)
+            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, true)
 
             calls.push(approveCall, swapCall)
         }
@@ -169,7 +170,7 @@ export class EtherlinkResolver extends Resolver {
 
         if (this.needsSwap(src, dst)) {
             const from = this.getAddress(chainId)
-            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage)
+            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, true)
 
             calls.push(approveCall, swapCall)
         }

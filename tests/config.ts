@@ -35,7 +35,6 @@ export interface TokenInfo {
 
 export interface ChainConfig {
     chainId: number
-    orderChainId: number
     name: string
     url: string
     createFork: boolean
@@ -57,7 +56,6 @@ export const config: Record<number, ChainConfig> = {
     // Ethereum Mainnet
     [Sdk.NetworkEnum.ETHEREUM]: {
         chainId: Sdk.NetworkEnum.ETHEREUM,
-        orderChainId: Sdk.NetworkEnum.ETHEREUM,
         name: 'Ethereum',
         url: fromEnv.ETH_CHAIN_RPC,
         createFork: fromEnv.ETH_CHAIN_CREATE_FORK,
@@ -81,7 +79,6 @@ export const config: Record<number, ChainConfig> = {
     // BSC (for backward compatibility with existing tests)
     [Sdk.NetworkEnum.BINANCE]: {
         chainId: Sdk.NetworkEnum.BINANCE,
-        orderChainId: Sdk.NetworkEnum.BINANCE,
         name: 'BSC',
         url: fromEnv.BSC_CHAIN_RPC,
         createFork: fromEnv.BSC_CHAIN_CREATE_FORK,
@@ -100,13 +97,12 @@ export const config: Record<number, ChainConfig> = {
     // Etherlink Testnet (Ghostnet)
     [128123]: {
         chainId: 128123,
-        orderChainId: Sdk.NetworkEnum.BINANCE, //because Sdk.CrossChainOrder.new throws: Not supported chain 128123
         name: 'Etherlink Testnet',
         url: fromEnv.ETHERLINK_CHAIN_RPC,
         createFork: fromEnv.ETHERLINK_CHAIN_CREATE_FORK,
         limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65',
         wrappedNative: '0xB1Ea698633d57705e93b0E40c1077d46CD6A51d8',
-        ownerPrivateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        ownerPrivateKey: '0x1ab0f706d505dd4f4c8096e78b8509f15be853ca7c52dbb975ac889c04b9fe3f',
 
         // Etherlink specific
         etherlinkRouter: fromEnv.ETHERLINK_ROUTER_ADDRESS,
@@ -140,6 +136,12 @@ export const config: Record<number, ChainConfig> = {
                 address: '0x92d81a25F6f46CD52B8230ef6ceA5747Bc3826Db',
                 isNative: false,
                 donor: '0x8a3CF0e82FdF5E47Ad42374D1C21067C039c4F13',
+                decimals: 18
+            },
+            WXTZ: {
+                address: '0xB1Ea698633d57705e93b0E40c1077d46CD6A51d8',
+                isNative: false,
+                donor: '0x6a6297e2dCF2FB86955f4c3D5f1AC1AB43049e05',
                 decimals: 18
             }
         }

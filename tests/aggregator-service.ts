@@ -42,6 +42,7 @@ export interface SwapParamsRequest extends QuoteRequest {
     allowPartialFill?: boolean
     referrer?: string
     fee?: string
+    isExactOutput: boolean
 }
 
 export interface SwapParamsResponse {
@@ -125,6 +126,8 @@ export class AggregatorApiClient {
         if (request.allowPartialFill) params.append('allowPartialFill', 'true')
 
         if (request.referrer) params.append('referrer', request.referrer)
+
+        if (request.isExactOutput) params.append('isExactOutput', request.isExactOutput ? 'true' : 'false')
 
         const response = await fetch(`${this.baseUrl}/swap_params?${params}`)
 
