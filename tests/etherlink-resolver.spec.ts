@@ -26,11 +26,6 @@ import {createCustomCrossChainOrder} from './custom-cross-chain-order'
 import factoryContract from '../dist/contracts/TestEscrowFactory.sol/TestEscrowFactory.json'
 import ResolverContract from '../dist/contracts/Resolver.sol/Resolver.json'
 
-// Mock router interface based on your IRouter
-const routerAbi = [
-    'function swap(uint256 amountIn, uint256 amountOutMin, address to, uint256 deadline, uint256 params, tuple(address tokenAddress, bool isNative)[] tokens, tuple(address routerAddress, uint256 packedData)[] steps, tuple(address referrer, uint256 feeAmount) referrerInfo) external payable returns (uint256 amountOut)'
-]
-
 const {Address} = Sdk
 
 jest.setTimeout(1000 * 180)
@@ -62,7 +57,6 @@ global.fetch = jest.fn(() =>
 ) as jest.Mock
 
 describe.skip('EtherlinkResolver Tests', () => {
-    const mockRouterAddress = dstChainConfig.etherlinkRouter || '0x693762D959A7f0deF7d54Ae440c935a85a82f6a0'
 
     type Chain = {
         node?: CreateServerReturnType | undefined
@@ -109,10 +103,6 @@ describe.skip('EtherlinkResolver Tests', () => {
                 [dstChainId]: dst.resolver
             },
             {
-                address: mockRouterAddress,
-                interface: new Interface(routerAbi)
-            },
-            {
                 [getToken(dstChainId, 'USDC').address.toLowerCase()]: {
                     symbol: 'USDC',
                     decimals: 6
@@ -122,7 +112,7 @@ describe.skip('EtherlinkResolver Tests', () => {
                     decimals: 18
                 }
             },
-            dstChainConfig.etherlinkApiUrl || 'https://mock-api.com'
+            dstChainConfig.etherlinkApiUrl
         )
 
         // Setup balances
@@ -235,11 +225,10 @@ describe.skip('EtherlinkResolver Tests', () => {
             // Execute deployDst without swap (same tokens)
             const {txHash: dstDepositHash} = await dstChainResolver.send(
                 await etherlinkResolver.deployDstWithSwap(
+                  dst.escrowFactory,
                     order,
                     dstImmutables,
-                    dstUSDC.address, // src = USDC
-                    dstUSDC.address, // dst = USDC (same token)
-                    dstImmutables.amount.toString()
+                    dstUSDC.address // src = USDC
                 )
             )
             console.log(`[${dstChainId}]`, `Created dst deposit for order ${orderHash} in tx ${dstDepositHash}`)
@@ -339,11 +328,11 @@ describe.skip('EtherlinkResolver Tests', () => {
 
             // Execute deployDst with swap (different tokens)
             const deployDstTx = await etherlinkResolver.deployDstWithSwap(
+              dst.escrowFactory,
                 order,
                 dstImmutables,
                 getToken(dstChainId, 'USDC').address, // src = USDC
                 dstWBTC.address, // dst = WBTC (different token)
-                dstImmutables.amount.toString(),
                 1 // 1% slippage
             )
 

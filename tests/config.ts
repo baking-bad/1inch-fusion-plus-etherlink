@@ -44,7 +44,7 @@ export interface ChainConfig {
 
     // Etherlink specific (optional)
     etherlinkRouter?: string
-    etherlinkApiUrl?: string
+    etherlinkApiUrl: string
     etherlinkApiKey?: string
 
     tokens: {

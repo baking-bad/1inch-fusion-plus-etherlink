@@ -8,7 +8,6 @@ import Sdk from '@1inch/cross-chain-sdk'
 import {
     computeAddress,
     ContractFactory,
-    Interface,
     JsonRpcProvider,
     MaxUint256,
     parseEther,
@@ -26,9 +25,6 @@ import {createCustomCrossChainOrder} from './custom-cross-chain-order'
 import factoryContract from '../dist/contracts/TestEscrowFactory.sol/TestEscrowFactory.json'
 import ResolverContract from '../dist/contracts/Resolver.sol/Resolver.json'
 
-// Mock router interface - we don't need the real one since API gives us calldata
-const routerAbi = ['function name() view returns (string)']
-
 // jest.setTimeout(1000 * 60 * 5) // 5 minutes for real API calls
 jest.setTimeout(1000 * 60 * 3)
 const userPk = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'
@@ -42,8 +38,7 @@ const srcChainConfig = getChainConfig(srcChainId)
 const dstChainConfig = getChainConfig(dstChainId)
 
 describe('EtherlinkResolver Real API Tests', () => {
-    const realApiUrl = dstChainConfig.etherlinkApiUrl || 'https://api.etherlink.your-domain.com'
-    const mockRouterAddress = dstChainConfig.etherlinkRouter
+    const realApiUrl = dstChainConfig.etherlinkApiUrl
 
     type Chain = {
         node?: CreateServerReturnType | undefined
@@ -83,16 +78,12 @@ describe('EtherlinkResolver Real API Tests', () => {
         srcFactory = new EscrowFactory(src.provider, src.escrowFactory)
         dstFactory = new EscrowFactory(dst.provider, dst.escrowFactory)
 
-
         etherlinkResolver = new EtherlinkResolver(
             {
                 [srcChainId]: src.resolver,
                 [dstChainId]: dst.resolver
             },
-            {
-                address: mockRouterAddress,
-                interface: new Interface(routerAbi)
-            },
+
             {
                 [getToken(dstChainId, 'USDC').address.toLowerCase()]: {
                     symbol: 'USDC',
@@ -278,11 +269,10 @@ describe('EtherlinkResolver Real API Tests', () => {
             try {
                 // This should make real API call and prepare transaction
                 const deployDstTx = await etherlinkResolver.deployDstWithSwap(
+                    dst.escrowFactory,
                     order,
                     dstImmutables,
                     dstUSDC.address, // we receive USDC from src chain
-                    dstWXTZ.address, // but need to deliver WXTZ to user
-                    dstImmutables.amount.toString(),
                     1 // 1% slippage
                 )
 

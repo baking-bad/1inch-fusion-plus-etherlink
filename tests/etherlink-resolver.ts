@@ -1,12 +1,7 @@
-import {Interface, TransactionRequest} from 'ethers'
+import {TransactionRequest} from 'ethers'
 import Sdk from '@1inch/cross-chain-sdk'
 import {Resolver, ResolverAddresses, ArbitraryCall} from './resolver'
 import {AggregatorApiClient, SwapParamsRequest} from './aggregator-service'
-
-export interface RouterConfig {
-    address: string
-    interface: Interface
-}
 
 export interface TokenConfig {
     [address: string]: {
@@ -16,20 +11,12 @@ export interface TokenConfig {
 }
 
 export class EtherlinkResolver extends Resolver {
-    private readonly routerConfig: RouterConfig
-
     private readonly supportedTokens: TokenConfig
 
     private readonly apiClient: AggregatorApiClient
 
-    constructor(
-        addresses: ResolverAddresses,
-        routerConfig: RouterConfig,
-        supportedTokens: TokenConfig,
-        aggregatorApiUrl: string
-    ) {
+    constructor(addresses: ResolverAddresses, supportedTokens: TokenConfig, aggregatorApiUrl: string) {
         super(addresses)
-        this.routerConfig = routerConfig
         this.supportedTokens = supportedTokens
         this.apiClient = new AggregatorApiClient(aggregatorApiUrl)
     }
@@ -51,6 +38,7 @@ export class EtherlinkResolver extends Resolver {
     public async getSwapParams(request: SwapParamsRequest): Promise<{
         routerAddress: string
         swapCalldata: string
+        expectedInput: bigint
         expectedOutput: bigint
         gasEstimate: number
     }> {
@@ -59,6 +47,7 @@ export class EtherlinkResolver extends Resolver {
         return {
             routerAddress: apiResponse.router,
             swapCalldata: apiResponse.params,
+            expectedInput: BigInt(apiResponse.srcAmount),
             expectedOutput: BigInt(apiResponse.dstAmount),
             gasEstimate: apiResponse.gas
         }
@@ -86,6 +75,7 @@ export class EtherlinkResolver extends Resolver {
     ): Promise<{
         approveCall: ArbitraryCall
         swapCall: ArbitraryCall
+        expectedInput: bigint
         expectedOutput: bigint
         gasEstimate: number
         routerAddress: string
@@ -99,9 +89,10 @@ export class EtherlinkResolver extends Resolver {
             isExactOutput
         }
 
-        const {routerAddress, swapCalldata, expectedOutput, gasEstimate} = await this.getSwapParams(request)
+        const {routerAddress, swapCalldata, expectedInput, expectedOutput, gasEstimate} =
+            await this.getSwapParams(request)
 
-        const approveCall = await this.prepareApproveCall(src, routerAddress, BigInt(amount))
+        const approveCall = await this.prepareApproveCall(src, routerAddress, BigInt(expectedInput))
         const swapCall: ArbitraryCall = {
             target: routerAddress,
             data: swapCalldata
@@ -110,6 +101,7 @@ export class EtherlinkResolver extends Resolver {
         return {
             approveCall,
             swapCall,
+            expectedInput,
             expectedOutput,
             gasEstimate,
             routerAddress
@@ -117,20 +109,35 @@ export class EtherlinkResolver extends Resolver {
     }
 
     public async deployDstWithSwap(
+        dstEscrowFactory: string,
         order: Sdk.CrossChainOrder,
         immutables: Sdk.Immutables,
-        src: string,
-        dst: string,
-        amount: string,
+        srcToken: string,
         slippage: number = 1
     ): Promise<TransactionRequest> {
         const calls: ArbitraryCall[] = []
+        const dstToken = order.escrowExtension.dstToken.toString()
+        const amount = order.takingAmount
 
-        if (this.needsSwap(src, dst)) {
+        if (this.needsSwap(srcToken, dstToken)) {
             const from = this.getAddress(order.escrowExtension.dstChainId)
-            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, true)
+            const {approveCall, swapCall} = await this.prepareSwapFromApi(
+                srcToken,
+                dstToken,
+                amount.toString(),
+                from,
+                slippage,
+                true
+            )
             calls.push(approveCall, swapCall)
         }
+
+        const escrowApproveCall = await this.prepareApproveCall(
+            dstToken,
+            dstEscrowFactory,
+            BigInt(amount)
+        )
+        calls.push(escrowApproveCall)
 
         return this.deployDst(order, immutables, calls)
     }

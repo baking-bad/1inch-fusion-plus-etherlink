@@ -48,6 +48,7 @@ export interface SwapParamsRequest extends QuoteRequest {
 export interface SwapParamsResponse {
     params: string // encoded calldata for swap
     router: string // router address
+    srcAmount: string // expected input amount
     dstAmount: string // expected output amount
     gas: number // gas limit
 }

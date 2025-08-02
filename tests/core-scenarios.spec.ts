@@ -26,7 +26,6 @@ import {createCustomCrossChainOrder} from './custom-cross-chain-order'
 import factoryContract from '../dist/contracts/TestEscrowFactory.sol/TestEscrowFactory.json'
 import ResolverContract from '../dist/contracts/Resolver.sol/Resolver.json'
 
-const routerAbi = ['function name() view returns (string)']
 const {Address} = Sdk
 
 // jest.setTimeout(1000 * 60 * 10) // 10 minutes for real API calls
@@ -41,8 +40,7 @@ const srcChainConfig = getChainConfig(srcChainId)
 const dstChainConfig = getChainConfig(dstChainId)
 
 describe.skip('Core Scenarios with Real API', () => {
-    const realApiUrl = dstChainConfig.etherlinkApiUrl || 'https://api.etherlink.your-domain.com'
-    const mockRouterAddress = dstChainConfig.etherlinkRouter
+    const realApiUrl = dstChainConfig.etherlinkApiUrl
 
     type Chain = {
         node?: CreateServerReturnType | undefined
@@ -99,10 +97,6 @@ describe.skip('Core Scenarios with Real API', () => {
             {
                 [srcChainId]: src.resolver,
                 [dstChainId]: dst.resolver
-            },
-            {
-                address: mockRouterAddress,
-                interface: new Interface(routerAbi)
             },
             {
                 [getToken(dstChainId, 'USDC').address.toLowerCase()]: {
@@ -231,11 +225,10 @@ describe.skip('Core Scenarios with Real API', () => {
             // Execute deployDst without swap (same tokens)
             const {txHash: dstDepositHash, blockTimestamp: dstDeployedAt} = await dstChainResolver.send(
                 await etherlinkResolver.deployDstWithSwap(
+                  dst.escrowFactory,
                     order,
                     dstImmutables,
-                    dstUSDC.address, // same token
-                    dstUSDC.address, // same token
-                    dstImmutables.amount.toString()
+                    dstUSDC.address
                 )
             )
 
@@ -375,11 +368,10 @@ describe.skip('Core Scenarios with Real API', () => {
 
                 const {txHash: dstDepositHash, blockTimestamp: dstDeployedAt} = await dstChainResolver.send(
                     await etherlinkResolver.deployDstWithSwap(
+                      dst.escrowFactory,
                         order,
                         dstImmutables,
                         dstUSDC.address, // we receive USDC from src
-                        dstWETH.address, // but need to deliver WETH
-                        dstImmutables.amount.toString(),
                         2 // 2% slippage for better success rate
                     )
                 )

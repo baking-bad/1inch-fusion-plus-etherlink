@@ -1,4 +1,4 @@
-import {AbiCoder, Contract, JsonRpcProvider, Signer, TransactionRequest, Wallet as PKWallet} from 'ethers'
+import {AbiCoder, Contract, JsonRpcProvider, Signer, TransactionRequest, Wallet as PKWallet, parseUnits} from 'ethers'
 import Sdk from '@1inch/cross-chain-sdk'
 import ERC20 from '../dist/contracts/IERC20.sol/IERC20.json'
 
@@ -67,7 +67,8 @@ export class Wallet {
     public async transferToken(token: string, dest: string, amount: bigint): Promise<void> {
         const tx = await this.signer.sendTransaction({
             to: token.toString(),
-            data: '0xa9059cbb' + coder.encode(['address', 'uint256'], [dest.toString(), amount]).slice(2)
+            data: '0xa9059cbb' + coder.encode(['address', 'uint256'], [dest.toString(), amount]).slice(2),
+            gasLimit: 10_000_000
         })
 
         await tx.wait()
@@ -93,7 +94,7 @@ export class Wallet {
     }
 
     async send(param: TransactionRequest): Promise<{txHash: string; blockTimestamp: bigint; blockHash: string}> {
-        const res = await this.signer.sendTransaction({...param, gasLimit: 10_000_000, from: this.getAddress()})
+        const res = await this.signer.sendTransaction({...param, gasLimit: 10_000_000, gasPrice: parseUnits("2", "gwei"), from: this.getAddress()})
         const receipt = await res.wait(1)
 
         if (receipt && receipt.status) {
