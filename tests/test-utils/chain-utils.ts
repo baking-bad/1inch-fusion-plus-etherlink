@@ -18,9 +18,9 @@ import {getChainConfig, getToken, ChainConfig} from '../config'
 import {Wallet} from '../wallet'
 import {EscrowFactory} from '../escrow-factory'
 import {EtherlinkResolver, TokenConfig} from '../etherlink-resolver'
+import {createCustomCrossChainOrder} from '../custom-cross-chain-order'
 import factoryContract from '../../dist/contracts/TestEscrowFactory.sol/TestEscrowFactory.json'
 import ResolverContract from '../../dist/contracts/Resolver.sol/Resolver.json'
-import {createCustomCrossChainOrder} from '../custom-cross-chain-order'
 
 export interface TokenAmount {
     token: string // symbol like 'USDC', 'WETH'
@@ -211,98 +211,6 @@ export class TestEnvironment {
     }
 
     /**
-     * Create standard CrossChain order with default settings
-     */
-    async createOrder(params: {
-        srcChainId: number
-        dstChainId: number
-        makingToken: string // symbol like 'USDC'
-        takingToken: string // symbol like 'WXTZ'
-        makingAmount: number // human readable like 10.5
-        takingAmount: number // human readable like 0.1
-        secret?: string // auto-generate if not provided
-    }): Promise<{
-        order: Sdk.CrossChainOrder
-        secret: string
-    }> {
-        const srcChain = this.getChain(params.srcChainId)
-        const dstChain = this.getChain(params.dstChainId)
-
-        const makingTokenInfo = getToken(params.srcChainId, params.makingToken)
-        const takingTokenInfo = getToken(params.dstChainId, params.takingToken)
-
-        const makingAmount = parseUnits(params.makingAmount.toString(), makingTokenInfo.decimals)
-        const takingAmount = parseUnits(params.takingAmount.toString(), takingTokenInfo.decimals)
-
-        const secret = params.secret || uint8ArrayToHex(randomBytes(32))
-        const startTime = await this.getCurrentTimestamp(params.srcChainId)
-
-        const order = createCustomCrossChainOrder(
-            new Sdk.Address(srcChain.escrowFactory),
-            {
-                salt: Sdk.randBigInt(1000n),
-                maker: new Sdk.Address(await srcChain.userWallet.getAddress()),
-                makingAmount,
-                takingAmount,
-                makerAsset: new Sdk.Address(makingTokenInfo.address),
-                takerAsset: new Sdk.Address(takingTokenInfo.address)
-            },
-            {
-                hashLock: Sdk.HashLock.forSingleFill(secret),
-                timeLocks: this.createStandardTimeLocks(),
-                srcChainId: params.srcChainId,
-                dstChainId: params.dstChainId,
-                srcSafetyDeposit: parseEther('0.001'),
-                dstSafetyDeposit: parseEther('0.001')
-            },
-            {
-                auction: this.createStandardAuction(startTime),
-                whitelist: [
-                    {
-                        address: new Sdk.Address(srcChain.resolver),
-                        allowFrom: 0n
-                    }
-                ],
-                resolvingStartTime: 0n
-            },
-            {
-                nonce: Sdk.randBigInt(UINT_40_MAX),
-                allowPartialFills: false,
-                allowMultipleFills: false
-            }
-        )
-
-        return {order, secret}
-    }
-
-    /**
-     * Create standard TimeLocks for tests
-     */
-    private createStandardTimeLocks(): Sdk.TimeLocks {
-        return Sdk.TimeLocks.new({
-            srcWithdrawal: 10n, // 10sec finality lock for test
-            srcPublicWithdrawal: 120n, // 2m for private withdrawal
-            srcCancellation: 121n, // 1sec public withdrawal
-            srcPublicCancellation: 122n, // 1sec private cancellation
-            dstWithdrawal: 10n, // 10sec finality lock for test
-            dstPublicWithdrawal: 100n, // 100sec private withdrawal
-            dstCancellation: 101n // 1sec public withdrawal
-        })
-    }
-
-    /**
-     * Create standard AuctionDetails for tests
-     */
-    private createStandardAuction(startTime: bigint): Sdk.AuctionDetails {
-        return new Sdk.AuctionDetails({
-            initialRateBump: 0,
-            points: [],
-            duration: 120n,
-            startTime
-        })
-    }
-
-    /**
      * Get EtherlinkResolver instance
      */
     getEtherlinkResolver(): EtherlinkResolver {
@@ -413,6 +321,219 @@ export class TestEnvironment {
         console.log(
             `[${chainId}] Resolver contract balances setup completed for tokens: ${tokens.map((t) => t.token).join(', ')}`
         )
+    }
+
+    /**
+     * Create standard CrossChain order with default settings
+     */
+    async createOrder(params: {
+        srcChainId: number
+        dstChainId: number
+        makingToken: string // symbol like 'USDC'
+        takingToken: string // symbol like 'WXTZ'
+        makingAmount: number // human readable like 10.5
+        takingAmount: number // human readable like 0.1
+        secret?: string // auto-generate if not provided
+    }): Promise<{
+        order: Sdk.CrossChainOrder
+        secret: string
+    }> {
+        const srcChain = this.getChain(params.srcChainId)
+        const dstChain = this.getChain(params.dstChainId)
+
+        const makingTokenInfo = getToken(params.srcChainId, params.makingToken)
+        const takingTokenInfo = getToken(params.dstChainId, params.takingToken)
+
+        const makingAmount = parseUnits(params.makingAmount.toString(), makingTokenInfo.decimals)
+        const takingAmount = parseUnits(params.takingAmount.toString(), takingTokenInfo.decimals)
+
+        const secret = params.secret || uint8ArrayToHex(randomBytes(32))
+        const startTime = await this.getCurrentTimestamp(params.srcChainId)
+
+        const order = createCustomCrossChainOrder(
+            new Sdk.Address(srcChain.escrowFactory),
+            {
+                salt: Sdk.randBigInt(1000n),
+                maker: new Sdk.Address(await srcChain.userWallet.getAddress()),
+                makingAmount,
+                takingAmount,
+                makerAsset: new Sdk.Address(makingTokenInfo.address),
+                takerAsset: new Sdk.Address(takingTokenInfo.address)
+            },
+            {
+                hashLock: Sdk.HashLock.forSingleFill(secret),
+                timeLocks: this.createStandardTimeLocks(),
+                srcChainId: params.srcChainId,
+                dstChainId: params.dstChainId,
+                srcSafetyDeposit: parseEther('0.001'),
+                dstSafetyDeposit: parseEther('0.001')
+            },
+            {
+                auction: this.createStandardAuction(startTime),
+                whitelist: [
+                    {
+                        address: new Sdk.Address(srcChain.resolver),
+                        allowFrom: 0n
+                    }
+                ],
+                resolvingStartTime: 0n
+            },
+            {
+                nonce: Sdk.randBigInt(UINT_40_MAX),
+                allowPartialFills: false,
+                allowMultipleFills: false
+            }
+        )
+
+        return {order, secret}
+    }
+
+    /**
+     * Create order for multiple fills
+     */
+    async createMultiFillOrder(params: {
+        srcChainId: number
+        dstChainId: number
+        makingToken: string
+        takingToken: string
+        makingAmount: number
+        takingAmount: number
+        secretCount: number
+    }): Promise<{
+        order: Sdk.CrossChainOrder
+        secrets: string[]
+    }> {
+        const srcChain = this.getChain(params.srcChainId)
+        const dstChain = this.getChain(params.dstChainId)
+
+        const makingTokenInfo = getToken(params.srcChainId, params.makingToken)
+        const takingTokenInfo = getToken(params.dstChainId, params.takingToken)
+
+        const makingAmount = parseUnits(params.makingAmount.toString(), makingTokenInfo.decimals)
+        const takingAmount = parseUnits(params.takingAmount.toString(), takingTokenInfo.decimals)
+
+        // Generate multiple secrets
+        const secrets = Array.from({length: params.secretCount}).map(() => uint8ArrayToHex(randomBytes(32)))
+        const secretHashes = secrets.map((s) => Sdk.HashLock.hashSecret(s))
+        const leaves = Sdk.HashLock.getMerkleLeaves(secrets)
+
+        const startTime = await this.getCurrentTimestamp(params.srcChainId)
+
+        const order = createCustomCrossChainOrder(
+            new Sdk.Address(srcChain.escrowFactory),
+            {
+                salt: Sdk.randBigInt(1000n),
+                maker: new Sdk.Address(await srcChain.userWallet.getAddress()),
+                makingAmount,
+                takingAmount,
+                makerAsset: new Sdk.Address(makingTokenInfo.address),
+                takerAsset: new Sdk.Address(takingTokenInfo.address)
+            },
+            {
+                hashLock: Sdk.HashLock.forMultipleFills(leaves),
+                timeLocks: this.createStandardTimeLocks(),
+                srcChainId: params.srcChainId,
+                dstChainId: params.dstChainId,
+                srcSafetyDeposit: parseEther('0.001'),
+                dstSafetyDeposit: parseEther('0.001')
+            },
+            {
+                auction: this.createStandardAuction(startTime),
+                whitelist: [
+                    {
+                        address: new Sdk.Address(srcChain.resolver),
+                        allowFrom: 0n
+                    }
+                ],
+                resolvingStartTime: 0n
+            },
+            {
+                nonce: Sdk.randBigInt(UINT_40_MAX),
+                allowPartialFills: true,
+                allowMultipleFills: true
+            }
+        )
+
+        return {order, secrets}
+    }
+
+    /**
+     * Execute deploySrc flow and return context for deployDst
+     */
+    async executeDeploySrc(
+        srcChainId: number,
+        order: Sdk.CrossChainOrder,
+        secret: string
+    ): Promise<{
+        orderHash: string
+        srcTxHash: string
+        dstImmutables: Sdk.Immutables
+    }> {
+        const dstChainId = order.escrowExtension.dstChainId
+
+        const srcChainResolver = this.getResolverWallet(srcChainId)
+        const etherlinkResolver = this.getEtherlinkResolver()
+
+        // Sign order
+        const signature = await this.getUserWallet(srcChainId).signOrder(srcChainId, order)
+        const orderHash = order.getOrderHash(srcChainId)
+
+        console.log(`[${srcChainId}] Filling order ${orderHash}`)
+
+        // Execute deploySrc
+        const {txHash: orderFillHash, blockHash: srcDeployBlock} = await srcChainResolver.send(
+            etherlinkResolver.deploySrc(
+                srcChainId,
+                order,
+                signature,
+                Sdk.TakerTraits.default()
+                    .setExtension(order.extension)
+                    .setAmountMode(Sdk.AmountMode.maker)
+                    .setAmountThreshold(order.takingAmount),
+                order.makingAmount
+            )
+        )
+
+        console.log(`[${srcChainId}] Order filled in tx ${orderFillHash}`)
+
+        // Get escrow data
+        const srcEscrowEvent = await this.getEscrowFactory(srcChainId).getSrcDeployEvent(srcDeployBlock)
+        const dstImmutables = srcEscrowEvent[0]
+            .withComplement(srcEscrowEvent[1])
+            .withTaker(new Sdk.Address(etherlinkResolver.getAddress(dstChainId)))
+
+        return {
+            orderHash,
+            srcTxHash: orderFillHash,
+            dstImmutables
+        }
+    }
+
+    /**
+     * Create standard TimeLocks for tests
+     */
+    private createStandardTimeLocks(): Sdk.TimeLocks {
+        return Sdk.TimeLocks.new({
+            srcWithdrawal: 10n, // 10sec finality lock for test
+            srcPublicWithdrawal: 120n, // 2m for private withdrawal
+            srcCancellation: 121n, // 1sec public withdrawal
+            srcPublicCancellation: 122n, // 1sec private cancellation
+            dstWithdrawal: 10n, // 10sec finality lock for test
+            dstPublicWithdrawal: 100n, // 100sec private withdrawal
+            dstCancellation: 101n // 1sec public withdrawal
+        })
+    }
+
+    /**
+     * Create standard AuctionDetails for tests
+     */
+    private createStandardAuction(startTime: bigint): Sdk.AuctionDetails {
+        return new Sdk.AuctionDetails({
+            initialRateBump: 0,
+            points: [],
+            duration: 120n,
+            startTime
+        })
     }
 
     /**

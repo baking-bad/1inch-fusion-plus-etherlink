@@ -32,7 +32,10 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
         // Resolver on Etherlink needs:
         // - XTZ for gas fees (native token)
         // - WETH for scenario 1 (no swap)
-        await env.setupResolverBalances(dstChainId, [{token: 'XTZ', amount: 2}, {token: 'WETH', amount: 0.1}])
+        await env.setupResolverBalances(dstChainId, [
+            {token: 'XTZ', amount: 2},
+            {token: 'WETH', amount: 0.1}
+        ])
         await env.setupResolverContractBalances(dstChainId, [{token: 'WETH', amount: 0.1}])
     })
 
@@ -42,15 +45,10 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
 
     describe('Scenario 1: ETH WETH -> Etherlink WETH (no swap)', () => {
         it('should transfer WETH to WETH without API calls', async () => {
-            const srcChain = env.getChain(srcChainId)
             const dstChain = env.getChain(dstChainId)
             const etherlinkResolver = env.getEtherlinkResolver()
-            const srcChainResolver = env.getResolverWallet(srcChainId)
             const dstChainResolver = env.getResolverWallet(dstChainId)
             const dstWETH = getToken(dstChainId, 'WETH')
-
-            // Reset fetch mock to track API calls
-            jest.clearAllMocks()
 
             // Create order WETH -> WETH (same token, no swap needed)
             const {order, secret} = await env.createOrder({
@@ -58,37 +56,14 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 dstChainId,
                 makingToken: 'WETH',
                 takingToken: 'WETH', // Same token
-                makingAmount: 0.1, // 1 WETH
-                takingAmount: 0.098 // 0.98 WETH (small fee)
+                makingAmount: 0.1,
+                takingAmount: 0.098
             })
 
             console.log('Created WETH -> WETH cross-chain order')
 
-            const signature = await env.getUserWallet(srcChainId).signOrder(srcChainId, order)
-            const orderHash = order.getOrderHash(srcChainId)
-
-            // Execute deploySrc on Ethereum
-            console.log(`[${srcChainId}] Filling WETH order ${orderHash}`)
-            const {txHash: orderFillHash, blockHash: srcDeployBlock} = await srcChainResolver.send(
-                etherlinkResolver.deploySrc(
-                    srcChainId,
-                    order,
-                    signature,
-                    Sdk.TakerTraits.default()
-                        .setExtension(order.extension)
-                        .setAmountMode(Sdk.AmountMode.maker)
-                        .setAmountThreshold(order.takingAmount),
-                    order.makingAmount
-                )
-            )
-
-            console.log(`[${srcChainId}] Order filled in tx ${orderFillHash}`)
-
-            // Get escrow data
-            const srcEscrowEvent = await env.getEscrowFactory(srcChainId).getSrcDeployEvent(srcDeployBlock)
-            const dstImmutables = srcEscrowEvent[0]
-                .withComplement(srcEscrowEvent[1])
-                .withTaker(new Sdk.Address(etherlinkResolver.getAddress(dstChainId)))
+            // Execute deploySrc flow
+            const {orderHash, dstImmutables} = await env.executeDeploySrc(srcChainId, order, secret)
 
             // Execute deployDst on Etherlink (no swap needed)
             console.log(`[${dstChainId}] Deploying destination escrow for WETH`)
@@ -103,22 +78,16 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             )
 
             console.log(`[${dstChainId}] Destination escrow deployed in tx ${dstDepositHash}`)
-
             console.log('WETH -> WETH transfer completed without swap')
         })
     })
 
     describe('Scenario 2: ETH WETH -> Etherlink WXTZ (with swap)', () => {
         it('should swap WETH to WXTZ using API integration', async () => {
-            const srcChain = env.getChain(srcChainId)
             const dstChain = env.getChain(dstChainId)
             const etherlinkResolver = env.getEtherlinkResolver()
-            const srcChainResolver = env.getResolverWallet(srcChainId)
             const dstChainResolver = env.getResolverWallet(dstChainId)
             const dstWETH = getToken(dstChainId, 'WETH')
-
-            // Reset fetch mock to track API calls
-            jest.clearAllMocks()
 
             // Create order WETH -> WXTZ (different tokens, swap needed)
             const {order, secret} = await env.createOrder({
@@ -126,37 +95,14 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 dstChainId,
                 makingToken: 'WETH',
                 takingToken: 'WXTZ', // Different token
-                makingAmount: 1, // 1 WETH
-                takingAmount: 0.5 // 0.5 WXTZ
+                makingAmount: 1,
+                takingAmount: 0.5
             })
 
             console.log('Created WETH -> WXTZ cross-chain order with swap')
 
-            const signature = await env.getUserWallet(srcChainId).signOrder(srcChainId, order)
-            const orderHash = order.getOrderHash(srcChainId)
-
-            // Execute deploySrc on Ethereum
-            console.log(`[${srcChainId}] Filling WETH -> WXTZ order ${orderHash}`)
-            const {txHash: orderFillHash, blockHash: srcDeployBlock} = await srcChainResolver.send(
-                etherlinkResolver.deploySrc(
-                    srcChainId,
-                    order,
-                    signature,
-                    Sdk.TakerTraits.default()
-                        .setExtension(order.extension)
-                        .setAmountMode(Sdk.AmountMode.maker)
-                        .setAmountThreshold(order.takingAmount),
-                    order.makingAmount
-                )
-            )
-
-            console.log(`[${srcChainId}] Order filled in tx ${orderFillHash}`)
-
-            // Get escrow data
-            const srcEscrowEvent = await env.getEscrowFactory(srcChainId).getSrcDeployEvent(srcDeployBlock)
-            const dstImmutables = srcEscrowEvent[0]
-                .withComplement(srcEscrowEvent[1])
-                .withTaker(new Sdk.Address(etherlinkResolver.getAddress(dstChainId)))
+            // Execute deploySrc flow
+            const {orderHash, dstImmutables} = await env.executeDeploySrc(srcChainId, order, secret)
 
             // Execute deployDst on Etherlink with WETH -> WXTZ swap
             console.log(`[${dstChainId}] Deploying destination escrow with WETH -> WXTZ swap`)
@@ -182,9 +128,6 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
 
     describe('End-to-end flow verification', () => {
         it('should complete full withdraw flow after successful swap', async () => {
-            // This test can be extended to include withdrawal scenarios
-            // For now, we verify the core swap functionality works
-
             const etherlinkResolver = env.getEtherlinkResolver()
 
             // Verify resolver can handle token checking
