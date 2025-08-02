@@ -1,5 +1,5 @@
 import Sdk from '@1inch/cross-chain-sdk'
-import {SettlementPostInteractionData, now, Interaction} from '@1inch/fusion-sdk'
+import {SettlementPostInteractionData, now} from '@1inch/fusion-sdk'
 import assert from 'assert'
 
 // Our custom supported chains including Etherlink
@@ -87,12 +87,12 @@ export function createCustomCrossChainOrder(
         customReceiver: orderInfo.receiver
     })
 
-    // Create escrow extension
+    // Create escrow extension WITHOUT permit
     const ext = new Sdk.EscrowExtension(
         escrowFactory,
         details.auction,
         postInteractionData,
-        extra?.permit ? new Interaction(orderInfo.makerAsset, extra.permit) : undefined,
+        undefined, // ОТКЛЮЧАЕМ PERMIT - передаем undefined вместо permit данных
         escrowParams.hashLock,
         escrowParams.dstChainId,
         orderInfo.takerAsset,
@@ -110,6 +110,10 @@ export function createCustomCrossChainOrder(
             ...orderInfo,
             takerAsset: new Sdk.Address(CUSTOM_TRUE_ERC20[escrowParams.srcChainId])
         },
-        extra
+        {
+            ...extra,
+            enablePermit2: false,
+            permit: undefined
+        }
     )
 }

@@ -4,7 +4,6 @@ import {
     computeAddress,
     ContractFactory,
     JsonRpcProvider,
-    MaxUint256,
     parseEther,
     parseUnits,
     randomBytes,
@@ -38,7 +37,6 @@ export interface ChainData {
     // Wallets
     userWallet: Wallet
     resolverWallet: Wallet
-    resolverContract: Wallet // impersonated resolver contract
 
     // Services
     escrowFactoryService: EscrowFactory
@@ -106,7 +104,6 @@ export class TestEnvironment {
         // Create wallets
         const userWallet = new Wallet(config.userPk, provider)
         const resolverWallet = new Wallet(config.resolverPk, provider)
-        const resolverContract = await Wallet.fromAddress(resolver, provider)
 
         // Create services
         const escrowFactoryService = new EscrowFactory(provider, escrowFactory)
@@ -120,7 +117,6 @@ export class TestEnvironment {
             config,
             userWallet,
             resolverWallet,
-            resolverContract,
             escrowFactoryService
         }
 
@@ -202,10 +198,6 @@ export class TestEnvironment {
         return this.getChain(chainId).resolverWallet
     }
 
-    getResolverContract(chainId: number): Wallet {
-        return this.getChain(chainId).resolverContract
-    }
-
     getEscrowFactory(chainId: number): EscrowFactory {
         return this.getChain(chainId).escrowFactoryService
     }
@@ -281,8 +273,8 @@ export class TestEnvironment {
                     await ownerWallet.transferToken(tokenInfo.address, await userWallet.getAddress(), amountWei)
                 }
 
-                // Auto-approve to LOP
-                await userWallet.approveToken(tokenInfo.address, chain.config.limitOrderProtocol, MaxUint256)
+                await userWallet.unlimitedApprove(tokenInfo.address, chain.config.limitOrderProtocol)
+                console.log(`[${chainId}] User approved ${token} to LOP`)
             }
         }
 

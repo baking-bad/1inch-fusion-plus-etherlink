@@ -95,7 +95,7 @@ export class Wallet {
 
     async send(param: TransactionRequest): Promise<{txHash: string; blockTimestamp: bigint; blockHash: string}> {
         const res = await this.signer.sendTransaction({...param, gasLimit: 10_000_000, gasPrice: parseUnits("2", "gwei"), from: this.getAddress()})
-        const receipt = await res.wait(1)
+        const receipt = await res.wait(1, 5000)
 
         if (receipt && receipt.status) {
             return {
