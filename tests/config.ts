@@ -33,8 +33,8 @@ const ConfigSchema = z.object({
     TEST_ETHERLINK_USER_PK: z.string().default('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'),
     TEST_ETHERLINK_RESOLVER_PK: z
         .string()
-        .default('0x1ab0f706d505dd4f4c8096e78b8509f15be853ca7c52dbb975ac889c04b9fe3f'),
-    TEST_ETHERLINK_OWNER_PK: z.string().default('0x1ab0f706d505dd4f4c8096e78b8509f15be853ca7c52dbb975ac889c04b9fe3f'),
+        .default('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'),
+    TEST_ETHERLINK_OWNER_PK: z.string().default('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'),
     TEST_TIMEOUT_MS: z.string().transform(Number).default('180000')
 })
 
