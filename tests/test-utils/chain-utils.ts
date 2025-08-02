@@ -49,7 +49,16 @@ export class TestEnvironment {
 
     private etherlinkResolver?: EtherlinkResolver
 
-    constructor() {}
+    private readonly srcChainId: number
+
+    private readonly dstChainId: number
+
+    private dstDeployedAt?: bigint // Store deployed timestamp
+
+    constructor(srcChainId: number, dstChainId: number) {
+        this.srcChainId = srcChainId
+        this.dstChainId = dstChainId
+    }
 
     /**
      * Initialize single chain with deployed contracts and wallets
@@ -121,10 +130,31 @@ export class TestEnvironment {
     }
 
     /**
+     * Initialize chains (defaults to src and dst)
+     */
+    async initChains(): Promise<void> {
+        await this.initAllChains([this.srcChainId, this.dstChainId])
+    }
+
+    /**
      * Initialize multiple chains
      */
     async initAllChains(chainIds: number[]): Promise<void> {
         await Promise.all(chainIds.map((chainId) => this.initChain(chainId)))
+    }
+
+    /**
+     * Get source chain data
+     */
+    getSrcChain(): ChainData {
+        return this.getChain(this.srcChainId)
+    }
+
+    /**
+     * Get destination chain data
+     */
+    getDstChain(): ChainData {
+        return this.getChain(this.dstChainId)
     }
 
     /**
@@ -327,8 +357,6 @@ export class TestEnvironment {
      * Create standard CrossChain order with default settings
      */
     async createOrder(params: {
-        srcChainId: number
-        dstChainId: number
         makingToken: string // symbol like 'USDC'
         takingToken: string // symbol like 'WXTZ'
         makingAmount: number // human readable like 10.5
@@ -338,17 +366,17 @@ export class TestEnvironment {
         order: Sdk.CrossChainOrder
         secret: string
     }> {
-        const srcChain = this.getChain(params.srcChainId)
-        const dstChain = this.getChain(params.dstChainId)
+        const srcChain = this.getSrcChain()
+        const dstChain = this.getDstChain()
 
-        const makingTokenInfo = getToken(params.srcChainId, params.makingToken)
-        const takingTokenInfo = getToken(params.dstChainId, params.takingToken)
+        const makingTokenInfo = getToken(this.srcChainId, params.makingToken)
+        const takingTokenInfo = getToken(this.dstChainId, params.takingToken)
 
         const makingAmount = parseUnits(params.makingAmount.toString(), makingTokenInfo.decimals)
         const takingAmount = parseUnits(params.takingAmount.toString(), takingTokenInfo.decimals)
 
         const secret = params.secret || uint8ArrayToHex(randomBytes(32))
-        const startTime = await this.getCurrentTimestamp(params.srcChainId)
+        const startTime = await this.getCurrentTimestamp(this.srcChainId)
 
         const order = createCustomCrossChainOrder(
             new Sdk.Address(srcChain.escrowFactory),
@@ -363,8 +391,8 @@ export class TestEnvironment {
             {
                 hashLock: Sdk.HashLock.forSingleFill(secret),
                 timeLocks: this.createStandardTimeLocks(),
-                srcChainId: params.srcChainId,
-                dstChainId: params.dstChainId,
+                srcChainId: this.srcChainId,
+                dstChainId: this.dstChainId,
                 srcSafetyDeposit: parseEther('0.001'),
                 dstSafetyDeposit: parseEther('0.001')
             },
@@ -461,29 +489,31 @@ export class TestEnvironment {
      * Execute deploySrc flow and return context for deployDst
      */
     async executeDeploySrc(
-        srcChainId: number,
         order: Sdk.CrossChainOrder,
         secret: string
     ): Promise<{
         orderHash: string
         srcTxHash: string
         dstImmutables: Sdk.Immutables
+        deployedAt: bigint
     }> {
-        const dstChainId = order.escrowExtension.dstChainId
-
-        const srcChainResolver = this.getResolverWallet(srcChainId)
+        const srcChainResolver = this.getResolverWallet(this.srcChainId)
         const etherlinkResolver = this.getEtherlinkResolver()
 
         // Sign order
-        const signature = await this.getUserWallet(srcChainId).signOrder(srcChainId, order)
-        const orderHash = order.getOrderHash(srcChainId)
+        const signature = await this.getUserWallet(this.srcChainId).signOrder(this.srcChainId, order)
+        const orderHash = order.getOrderHash(this.srcChainId)
 
-        console.log(`[${srcChainId}] Filling order ${orderHash}`)
+        console.log(`[${this.srcChainId}] Filling order ${orderHash}`)
 
         // Execute deploySrc
-        const {txHash: orderFillHash, blockHash: srcDeployBlock} = await srcChainResolver.send(
+        const {
+            txHash: orderFillHash,
+            blockHash: srcDeployBlock,
+            blockTimestamp
+        } = await srcChainResolver.send(
             etherlinkResolver.deploySrc(
-                srcChainId,
+                this.srcChainId,
                 order,
                 signature,
                 Sdk.TakerTraits.default()
@@ -494,18 +524,192 @@ export class TestEnvironment {
             )
         )
 
-        console.log(`[${srcChainId}] Order filled in tx ${orderFillHash}`)
+        console.log(`[${this.srcChainId}] Order filled in tx ${orderFillHash}`)
 
         // Get escrow data
-        const srcEscrowEvent = await this.getEscrowFactory(srcChainId).getSrcDeployEvent(srcDeployBlock)
+        const srcEscrowEvent = await this.getEscrowFactory(this.srcChainId).getSrcDeployEvent(srcDeployBlock)
         const dstImmutables = srcEscrowEvent[0]
             .withComplement(srcEscrowEvent[1])
-            .withTaker(new Sdk.Address(etherlinkResolver.getAddress(dstChainId)))
+            .withTaker(new Sdk.Address(etherlinkResolver.getAddress(this.dstChainId)))
+
+        // Store deployed timestamp for later use
+        this.dstDeployedAt = blockTimestamp
 
         return {
             orderHash,
             srcTxHash: orderFillHash,
-            dstImmutables
+            dstImmutables,
+            deployedAt: blockTimestamp
+        }
+    }
+
+    /**
+     * Calculate escrow addresses for withdraw operations
+     */
+    private async calculateEscrowAddresses(
+        dstImmutables: Sdk.Immutables,
+        deployedAt: bigint
+    ): Promise<{
+        srcEscrowAddress: string
+        dstEscrowAddress: string
+    }> {
+        const srcChain = this.getSrcChain()
+        const dstChain = this.getDstChain()
+        const etherlinkResolver = this.getEtherlinkResolver()
+
+        const ESCROW_SRC_IMPLEMENTATION = await this.getEscrowFactory(this.srcChainId).getSourceImpl()
+        const ESCROW_DST_IMPLEMENTATION = await this.getEscrowFactory(this.dstChainId).getDestinationImpl()
+
+        // For src escrow, we need the base immutables (without complement)
+        const srcImmutables = Sdk.Immutables.new({
+            orderHash: dstImmutables.orderHash,
+            hashLock: dstImmutables.hashLock,
+            maker: dstImmutables.maker,
+            taker: dstImmutables.taker,
+            token: dstImmutables.token,
+            amount: dstImmutables.amount,
+            safetyDeposit: dstImmutables.safetyDeposit,
+            timeLocks: dstImmutables.timeLocks
+        })
+
+        const srcEscrowAddress = new Sdk.EscrowFactory(new Sdk.Address(srcChain.escrowFactory)).getSrcEscrowAddress(
+            srcImmutables,
+            ESCROW_SRC_IMPLEMENTATION
+        )
+
+        // For dst escrow, we need the complement data
+        const dstEscrowAddress = new Sdk.EscrowFactory(new Sdk.Address(dstChain.escrowFactory)).getDstEscrowAddress(
+            srcImmutables, // base immutables
+            Sdk.DstImmutablesComplement.new({
+                maker: dstImmutables.maker, // This should be the dst user
+                amount: dstImmutables.amount, // This should be the dst amount
+                token: dstImmutables.token, // This should be the dst token
+                safetyDeposit: dstImmutables.safetyDeposit
+            }),
+            deployedAt,
+            new Sdk.Address(etherlinkResolver.getAddress(this.dstChainId)),
+            ESCROW_DST_IMPLEMENTATION
+        )
+
+        return {
+            srcEscrowAddress: srcEscrowAddress.toString(),
+            dstEscrowAddress: dstEscrowAddress.toString()
+        }
+    }
+
+    /**
+     * Execute withdraw on destination chain
+     */
+    async withdrawDst(
+        dstImmutables: Sdk.Immutables,
+        secret: string,
+        deployedAt?: bigint,
+        swapConfig?: {
+            fromToken: string // token address received from escrow
+            toToken: string // preferred token address
+            amount: bigint // amount to swap
+            slippage?: number // slippage percentage (default 1%)
+        }
+    ): Promise<{
+        txHash: string
+        escrowAddress: string
+    }> {
+        const timestamp = deployedAt || this.dstDeployedAt || BigInt(Math.floor(Date.now() / 1000))
+        const {dstEscrowAddress} = await this.calculateEscrowAddresses(dstImmutables, timestamp)
+
+        const dstChainResolver = this.getResolverWallet(this.dstChainId)
+        const etherlinkResolver = this.getEtherlinkResolver()
+
+        console.log(`[${this.dstChainId}] Withdrawing funds for user from ${dstEscrowAddress}`)
+
+        let withdrawTx
+
+        if (swapConfig) {
+            // Withdraw with swap
+            withdrawTx = await etherlinkResolver.withdrawWithSwap(
+                this.dstChainId,
+                new Sdk.Address(dstEscrowAddress),
+                secret,
+                dstImmutables,
+                swapConfig.fromToken,
+                swapConfig.toToken,
+                swapConfig.amount.toString(),
+                swapConfig.slippage || 1
+            )
+        } else {
+            // Simple withdraw without swap
+            withdrawTx = etherlinkResolver.withdraw(
+                this.dstChainId,
+                new Sdk.Address(dstEscrowAddress),
+                secret,
+                dstImmutables,
+                [] // No swap calls
+            )
+        }
+
+        const {txHash} = await dstChainResolver.send(withdrawTx)
+
+        return {
+            txHash,
+            escrowAddress: dstEscrowAddress
+        }
+    }
+
+    /**
+     * Execute withdraw on source chain
+     */
+    async withdrawSrc(
+        srcImmutables: Sdk.Immutables,
+        secret: string,
+        deployedAt?: bigint,
+        swapConfig?: {
+            fromToken: string // token address received from escrow
+            toToken: string // preferred token address
+            amount: bigint // amount to swap
+            slippage?: number // slippage percentage (default 1%)
+        }
+    ): Promise<{
+        txHash: string
+        escrowAddress: string
+    }> {
+        const timestamp = deployedAt || this.dstDeployedAt || BigInt(Math.floor(Date.now() / 1000))
+        const {srcEscrowAddress} = await this.calculateEscrowAddresses(srcImmutables, timestamp)
+
+        const srcChainResolver = this.getResolverWallet(this.srcChainId)
+        const etherlinkResolver = this.getEtherlinkResolver()
+
+        console.log(`[${this.srcChainId}] Withdrawing funds for resolver from ${srcEscrowAddress}`)
+
+        let withdrawTx
+
+        if (swapConfig) {
+            // Withdraw with swap
+            withdrawTx = await etherlinkResolver.withdrawWithSwap(
+                this.srcChainId,
+                new Sdk.Address(srcEscrowAddress),
+                secret,
+                srcImmutables, // Use source immutables for src withdraw
+                swapConfig.fromToken,
+                swapConfig.toToken,
+                swapConfig.amount.toString(),
+                swapConfig.slippage || 1
+            )
+        } else {
+            // Simple withdraw without swap
+            withdrawTx = etherlinkResolver.withdraw(
+                this.srcChainId,
+                new Sdk.Address(srcEscrowAddress),
+                secret,
+                srcImmutables, // Use source immutables for src withdraw
+                [] // No swap calls
+            )
+        }
+
+        const {txHash} = await srcChainResolver.send(withdrawTx)
+
+        return {
+            txHash,
+            escrowAddress: srcEscrowAddress
         }
     }
 

@@ -19,7 +19,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
 
     beforeAll(async () => {
         // Initialize test environment
-        env = new TestEnvironment()
+        env = new TestEnvironment(srcChainId, dstChainId)
         await env.initAllChains([srcChainId, dstChainId])
 
         // Create EtherlinkResolver
@@ -52,8 +52,6 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
 
             // Create order WETH -> WETH (same token, no swap needed)
             const {order, secret} = await env.createOrder({
-                srcChainId,
-                dstChainId,
                 makingToken: 'WETH',
                 takingToken: 'WETH', // Same token
                 makingAmount: 0.1,
@@ -63,7 +61,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             console.log('Created WETH -> WETH cross-chain order')
 
             // Execute deploySrc flow
-            const {orderHash, dstImmutables} = await env.executeDeploySrc(srcChainId, order, secret)
+            const {orderHash, dstImmutables} = await env.executeDeploySrc(order, secret)
 
             // Execute deployDst on Etherlink (no swap needed)
             console.log(`[${dstChainId}] Deploying destination escrow for WETH`)
@@ -91,8 +89,6 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
 
             // Create order WETH -> WXTZ (different tokens, swap needed)
             const {order, secret} = await env.createOrder({
-                srcChainId,
-                dstChainId,
                 makingToken: 'WETH',
                 takingToken: 'WXTZ', // Different token
                 makingAmount: 1,
@@ -102,7 +98,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             console.log('Created WETH -> WXTZ cross-chain order with swap')
 
             // Execute deploySrc flow
-            const {orderHash, dstImmutables} = await env.executeDeploySrc(srcChainId, order, secret)
+            const {orderHash, dstImmutables} = await env.executeDeploySrc(order, secret)
 
             // Execute deployDst on Etherlink with WETH -> WXTZ swap
             console.log(`[${dstChainId}] Deploying destination escrow with WETH -> WXTZ swap`)
