@@ -16,7 +16,7 @@ const dstChainId = 128123 // Etherlink Testnet
 getChainConfig(srcChainId)
 const dstChainConfig = getChainConfig(dstChainId)
 
-describe('EtherlinkResolver Real API Tests', () => {
+describe.skip('EtherlinkResolver Real API Tests', () => {
     const realApiUrl = dstChainConfig.etherlinkApiUrl
 
     let env: TestEnvironment
