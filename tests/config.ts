@@ -18,8 +18,8 @@ const ConfigSchema = z.object({
 
     // Etherlink
     TEST_ETHERLINK_CHAIN_RPC: z.string().url(),
-    ETHERLINK_CHAIN_CREATE_FORK: bool.default('true'),
-    ETHERLINK_ROUTER_ADDRESS: z.string().default('0x0000000000000000000000000000000000000000'),
+    TEST_ETHERLINK_CHAIN_CREATE_FORK: bool.default('true'),
+    TEST_ETHERLINK_ROUTER_ADDRESS: z.string().default('0x0000000000000000000000000000000000000000'),
     TEST_ETHERLINK_API_URL: z.string().default('https://api.etherlink.your-domain.com'),
     TEST_ETHERLINK_API_KEY: z.string().default(''),
 
@@ -121,7 +121,7 @@ export const config: Record<number, ChainConfig> = {
         chainId: 128123,
         name: 'Etherlink Testnet',
         url: fromEnv.TEST_ETHERLINK_CHAIN_RPC,
-        createFork: fromEnv.ETHERLINK_CHAIN_CREATE_FORK,
+        createFork: fromEnv.TEST_ETHERLINK_CHAIN_CREATE_FORK,
         limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65',
         wrappedNative: '0xB1Ea698633d57705e93b0E40c1077d46CD6A51d8',
         ownerPk: fromEnv.TEST_ETHERLINK_OWNER_PK,
@@ -129,7 +129,7 @@ export const config: Record<number, ChainConfig> = {
         resolverPk: fromEnv.TEST_ETHERLINK_RESOLVER_PK,
 
         // Etherlink specific
-        etherlinkRouter: fromEnv.ETHERLINK_ROUTER_ADDRESS,
+        etherlinkRouter: fromEnv.TEST_ETHERLINK_ROUTER_ADDRESS,
         etherlinkApiUrl: fromEnv.TEST_ETHERLINK_API_URL,
         etherlinkApiKey: fromEnv.TEST_ETHERLINK_API_KEY,
 

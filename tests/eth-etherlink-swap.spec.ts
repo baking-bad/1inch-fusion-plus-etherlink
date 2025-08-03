@@ -23,90 +23,88 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
         await env.initAllChains([srcChainId, dstChainId])
 
         // Create EtherlinkResolver
-        env.createEtherlinkResolver(dstChainId, ['WETH', 'WXTZ'], dstChainConfig.etherlinkApiUrl)
-
-        // Setup balances
-        // User on Ethereum needs WETH for making orders
-        await env.setupUserBalances(srcChainId, [{token: 'WETH', amount: 10}])
-
-        // Resolver on Etherlink needs:
-        // - XTZ for gas fees (native token)
-        // - WETH for scenario 1 (no swap)
-        await env.setupResolverBalances(dstChainId, [
-            {token: 'XTZ', amount: 2},
-            {token: 'WETH', amount: 0.1}
-        ])
-        await env.setupResolverContractBalances(dstChainId, [{token: 'WETH', amount: 0.1}])
+        env.createEtherlinkResolver(dstChainId, ['USDC', 'WXTZ'], dstChainConfig.etherlinkApiUrl)
     })
 
     afterAll(async () => {
         await env.cleanup()
     })
 
-    describe('Scenario 1: ETH WETH -> Etherlink WETH (no swap)', () => {
-        it('should transfer WETH to WETH without API calls', async () => {
+    describe('Scenario 1: ETH USDC -> Etherlink USDC (no swap)', () => {
+        it('should transfer USDC to USDC without API calls', async () => {
+            await env.setupUserBalances(srcChainId, [{token: 'USDC', amount: 0.1}])
+            await env.setupResolverBalances(dstChainId, [{token: 'USDC', amount: 0.1}])
+            await env.setupResolverContractBalances(dstChainId, [{token: 'USDC', amount: 0.1}])
+
             const dstChain = env.getChain(dstChainId)
             const etherlinkResolver = env.getEtherlinkResolver()
             const dstChainResolver = env.getResolverWallet(dstChainId)
-            const dstWETH = getToken(dstChainId, 'WETH')
+            const dstUSDC = getToken(dstChainId, 'USDC')
 
-            // Create order WETH -> WETH (same token, no swap needed)
+            // Create order USDC -> USDC (same token, no swap needed)
             const {order, secret} = await env.createOrder({
-                makingToken: 'WETH',
-                takingToken: 'WETH', // Same token
+                makingToken: 'USDC',
+                takingToken: 'USDC', // Same token
                 makingAmount: 0.1,
                 takingAmount: 0.098
             })
 
-            console.log('Created WETH -> WETH cross-chain order')
+            console.log('Created USDC -> USDC cross-chain order')
 
             // Execute deploySrc flow
             const {orderHash, dstImmutables} = await env.executeDeploySrc(order, secret)
 
             // Execute deployDst on Etherlink (no swap needed)
-            console.log(`[${dstChainId}] Deploying destination escrow for WETH`)
+            console.log(`[${dstChainId}] Deploying destination escrow for USDC`)
             const {txHash: dstDepositHash} = await dstChainResolver.send(
                 await etherlinkResolver.deployDstWithSwap(
                     dstChain.escrowFactory,
                     order,
                     dstImmutables,
-                    dstWETH.address, // resolver has WETH
+                    dstUSDC.address, // resolver has USDC
                     1 // slippage (won't be used)
                 )
             )
 
             console.log(`[${dstChainId}] Destination escrow deployed in tx ${dstDepositHash}`)
-            console.log('WETH -> WETH transfer completed without swap')
+            console.log('USDC -> USDC transfer completed without swap')
         })
     })
 
-    describe('Scenario 2: ETH WETH -> Etherlink WXTZ (with swap)', () => {
-        it('should swap WETH to WXTZ using API integration', async () => {
+    describe('Scenario 2: ETH USDC -> Etherlink WXTZ (with swap)', () => {
+        it('should swap USDC to WXTZ using API integration', async () => {
+            await env.setupUserBalances(srcChainId, [{token: 'USDC', amount: 10}])
+            await env.setupResolverBalances(dstChainId, [
+                {token: 'XTZ', amount: 2},
+                {token: 'USDC', amount: 0.5}
+            ])
+            await env.setupResolverContractBalances(dstChainId, [{token: 'USDC', amount: 0.5}])
+
             const dstChain = env.getChain(dstChainId)
             const etherlinkResolver = env.getEtherlinkResolver()
             const dstChainResolver = env.getResolverWallet(dstChainId)
-            const dstWETH = getToken(dstChainId, 'WETH')
+            const dstUSDC = getToken(dstChainId, 'USDC')
 
-            // Create order WETH -> WXTZ (different tokens, swap needed)
+            // Create order USDC -> WXTZ (different tokens, swap needed)
             const {order, secret} = await env.createOrder({
-                makingToken: 'WETH',
+                makingToken: 'USDC',
                 takingToken: 'WXTZ', // Different token
                 makingAmount: 1,
-                takingAmount: 0.5
+                takingAmount: 0.05
             })
 
-            console.log('Created WETH -> WXTZ cross-chain order with swap')
+            console.log('Created USDC -> WXTZ cross-chain order with swap')
 
             // Execute deploySrc flow
             const {orderHash, dstImmutables} = await env.executeDeploySrc(order, secret)
 
-            // Execute deployDst on Etherlink with WETH -> WXTZ swap
-            console.log(`[${dstChainId}] Deploying destination escrow with WETH -> WXTZ swap`)
+            // Execute deployDst on Etherlink with USDC -> WXTZ swap
+            console.log(`[${dstChainId}] Deploying destination escrow with USDC -> WXTZ swap`)
             const deployDstTx = await etherlinkResolver.deployDstWithSwap(
                 dstChain.escrowFactory,
                 order,
                 dstImmutables,
-                dstWETH.address, // resolver has WETH, needs WXTZ
+                dstUSDC.address, // resolver has USDC, needs WXTZ
                 2 // 2% slippage for swap
             )
 
@@ -118,7 +116,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             expect(deployDstTx.data).toBeDefined()
             expect(deployDstTx.data?.length).toBeGreaterThan(200) // Complex transaction with multiple calls
 
-            console.log('WETH -> WXTZ swap completed with API integration')
+            console.log('USDC -> WXTZ swap completed with API integration')
         })
     })
 
@@ -127,11 +125,11 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             const etherlinkResolver = env.getEtherlinkResolver()
 
             // Verify resolver can handle token checking
-            const wethToken = getToken(dstChainId, 'WETH')
+            const usdcToken = getToken(dstChainId, 'USDC')
             const wxtzToken = getToken(dstChainId, 'WXTZ')
 
-            expect(etherlinkResolver.needsSwap(wethToken.address, wethToken.address)).toBe(false)
-            expect(etherlinkResolver.needsSwap(wethToken.address, wxtzToken.address)).toBe(true)
+            expect(etherlinkResolver.needsSwap(usdcToken.address, usdcToken.address)).toBe(false)
+            expect(etherlinkResolver.needsSwap(usdcToken.address, wxtzToken.address)).toBe(true)
 
             console.log('Token swap logic verification completed')
         })
