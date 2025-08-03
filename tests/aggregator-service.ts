@@ -130,7 +130,10 @@ export class AggregatorApiClient {
 
         if (request.isExactOutput) params.append('isExactOutput', request.isExactOutput ? 'true' : 'false')
 
-        const response = await fetch(`${this.baseUrl}/swap_params?${params}`)
+        const url = `${this.baseUrl}/swap_params?${params}`
+        console.log('Requested url', url)
+
+        const response = await fetch(url)
 
         if (!response.ok) {
             const errorText = await response.text()
