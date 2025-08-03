@@ -16,6 +16,10 @@ import {Address} from "solidity-utils/contracts/libraries/AddressLib.sol";
 import {IEscrow} from "../lib/cross-chain-swap/contracts/interfaces/IEscrow.sol";
 import {ImmutablesLib} from "../lib/cross-chain-swap/contracts/libraries/ImmutablesLib.sol";
 
+import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+
+
 /**
  * @title Resolver contract for cross-chain swap with arbitrary calls support.
  * @dev Extends original Resolver with ability to execute arbitrary calls before/after main operations.
@@ -24,9 +28,12 @@ import {ImmutablesLib} from "../lib/cross-chain-swap/contracts/libraries/Immutab
 contract Resolver is Ownable {
     using ImmutablesLib for IBaseEscrow.Immutables;
     using TimelocksLib for Timelocks;
+    using SafeERC20 for IERC20;
 
     error InvalidLength();
     error LengthMismatch();
+    error InvalidAmount();
+    error TransferFailed();
 
     IEscrowFactory private immutable _FACTORY;
     IOrderMixin private immutable _LOP;
@@ -144,6 +151,36 @@ contract Resolver is Ownable {
             // solhint-disable-next-line avoid-low-level-calls
             (bool success,) = targets[i].call(callsData[i]);
             if (!success) RevertReasonForwarder.reRevert();
+        }
+    }
+
+    /**
+     * @notice Withdraw tokens or native currency from the contract
+     * @param token Token contract address (use address(0) for native tokens)
+     * @param to Recipient address
+     * @param amount Amount to withdraw (0 = withdraw all)
+     */
+    function withdrawFunds(address token, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert InvalidAmount();
+
+        if (token == address(0)) {
+            // Withdraw native tokens (ETH/XTZ)
+            uint256 contractBalance = address(this).balance;
+            uint256 withdrawAmount = amount == 0 ? contractBalance : amount;
+
+            if (withdrawAmount == 0 || withdrawAmount > contractBalance) revert InvalidAmount();
+
+            (bool success,) = payable(to).call{value: withdrawAmount}("");
+            if (!success) revert TransferFailed();
+        } else {
+            // Withdraw ERC20 tokens
+            IERC20 tokenContract = IERC20(token);
+            uint256 contractBalance = tokenContract.balanceOf(address(this));
+            uint256 withdrawAmount = amount == 0 ? contractBalance : amount;
+
+            if (withdrawAmount == 0 || withdrawAmount > contractBalance) revert InvalidAmount();
+
+            tokenContract.safeTransfer(to, withdrawAmount);
         }
     }
 }
