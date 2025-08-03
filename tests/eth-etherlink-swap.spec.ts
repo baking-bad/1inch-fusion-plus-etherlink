@@ -11,6 +11,9 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms * 
 const srcChainId = Sdk.NetworkEnum.ETHEREUM
 const dstChainId = 128123 // Etherlink Testnet
 
+//mainnet:
+// const dstChainId = 42793 // Etherlink Mainnet
+
 const dstChainConfig = getChainConfig(dstChainId)
 
 describe('ETH to Etherlink Cross-Chain Tests', () => {
@@ -195,9 +198,12 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             expect(deployDstTx.data).toBeDefined()
             expect(deployDstTx.data?.length).toBeGreaterThan(200) // Complex transaction with multiple calls
 
-            // Wait for finality lock to pass
+            // Wait for finality lock to pass (testnet)
             await increaseTime(env.getProviders(), 15)
+
+            //mainnet:
             // await delay(15)
+
             // Execute withdraws
             // 1. Withdraw on destination (user gets WXTZ on Etherlink - no additional swap)
             const {txHash: dstWithdrawHash} = await env.withdrawDst(
