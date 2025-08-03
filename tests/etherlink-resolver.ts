@@ -156,7 +156,7 @@ export class EtherlinkResolver extends Resolver {
 
         if (this.needsSwap(src, dst)) {
             const from = this.getAddress(chainId)
-            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, true)
+            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, false)
 
             calls.push(approveCall, swapCall)
         }
@@ -177,7 +177,7 @@ export class EtherlinkResolver extends Resolver {
 
         if (this.needsSwap(src, dst)) {
             const from = this.getAddress(chainId)
-            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, true)
+            const {approveCall, swapCall} = await this.prepareSwapFromApi(src, dst, amount, from, slippage, false)
 
             calls.push(approveCall, swapCall)
         }

@@ -4,6 +4,7 @@ import Sdk from '@1inch/cross-chain-sdk'
 
 import {getChainConfig, getToken, testConfig} from './config'
 import {TestEnvironment, increaseTime} from './test-utils/chain-utils'
+
 jest.setTimeout(testConfig.timeoutMs)
 
 // Test configuration
@@ -39,19 +40,18 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             const dstChainResolver = env.getResolverWallet(dstChainId)
             const dstUSDC = getToken(dstChainId, 'USDC')
 
-            // Record initial balances
+            // Record initial balances (check resolver CONTRACT balances, not wallet)
             const initialBalances = {
                 srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                srcResolver: await env
-                    .getResolverWallet(srcChainId)
-                    .tokenBalanceOf(
-                        getToken(srcChainId, 'USDC').address,
-                        env.getEtherlinkResolver().getAddress(srcChainId)
-                    ),
+                srcResolverContract: await env.getUserWallet(srcChainId).tokenBalanceOf(
+                    getToken(srcChainId, 'USDC').address,
+                    env.getEtherlinkResolver().getAddress(srcChainId) // Resolver contract address
+                ),
                 dstUser: await env.getUserWallet(dstChainId).tokenBalance(dstUSDC.address),
-                dstResolver: await env
-                    .getResolverWallet(dstChainId)
-                    .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId))
+                dstResolverContract: await env.getUserWallet(dstChainId).tokenBalanceOf(
+                    dstUSDC.address,
+                    env.getEtherlinkResolver().getAddress(dstChainId) // Resolver contract address
+                )
             }
 
             // Create order USDC -> USDC (same token, no swap needed)
@@ -82,7 +82,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
 
             // Wait for finality lock to pass
             await increaseTime(env.getProviders(), 15)
-            // await setTimeout(11000)
+
             // Execute withdraws
             // 1. Withdraw on destination (user gets USDC on Etherlink)
             const {txHash: dstWithdrawHash} = await env.withdrawDst(
@@ -100,33 +100,35 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             )
             console.log(`[${srcChainId}] Resolver withdrew USDC in tx ${srcWithdrawHash}`)
 
-            // Verify final balances
+            // Verify final balances (check resolver CONTRACT balances)
             const finalBalances = {
                 srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                srcResolver: await env
-                    .getResolverWallet(srcChainId)
+                srcResolverContract: await env
+                    .getUserWallet(srcChainId)
                     .tokenBalanceOf(
                         getToken(srcChainId, 'USDC').address,
                         env.getEtherlinkResolver().getAddress(srcChainId)
                     ),
                 dstUser: await env.getUserWallet(dstChainId).tokenBalance(dstUSDC.address),
-                dstResolver: await env
-                    .getResolverWallet(dstChainId)
+                dstResolverContract: await env
+                    .getUserWallet(dstChainId)
                     .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId))
             }
 
             // User transferred USDC from src to dst
             expect(initialBalances.srcUser - finalBalances.srcUser).toBe(order.makingAmount)
+            expect(finalBalances.dstUser - initialBalances.dstUser).toBe(order.takingAmount)
 
-            // Resolver gained USDC on src, lost USDC on dst
-            expect(initialBalances.dstResolver - finalBalances.dstResolver).toBe(order.takingAmount)
+            // Resolver CONTRACT gained USDC on src, lost USDC on dst
+            expect(finalBalances.srcResolverContract - initialBalances.srcResolverContract).toBe(order.makingAmount)
+            expect(initialBalances.dstResolverContract - finalBalances.dstResolverContract).toBe(order.takingAmount)
 
             console.log('USDC -> USDC transfer completed without swap')
         })
     })
 
     describe('Scenario 2: ETH USDC -> Etherlink WXTZ (with swap)', () => {
-        it.skip('should swap USDC to WXTZ using API integration and complete withdraw', async () => {
+        it('should swap USDC to WXTZ using API integration and complete withdraw', async () => {
             await env.setupUserBalances(srcChainId, [{token: 'USDC', amount: 10}])
             await env.setupResolverBalances(dstChainId, [
                 {token: 'XTZ', amount: 2},
@@ -140,13 +142,22 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             const dstUSDC = getToken(dstChainId, 'USDC')
             const dstWXTZ = getToken(dstChainId, 'WXTZ')
 
-            // Record initial balances
+            // Record initial balances (check resolver CONTRACT balances)
             const initialBalances = {
                 srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                srcResolver: await env.getResolverWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
+                srcResolverContract: await env
+                    .getUserWallet(srcChainId)
+                    .tokenBalanceOf(
+                        getToken(srcChainId, 'USDC').address,
+                        env.getEtherlinkResolver().getAddress(srcChainId)
+                    ),
                 dstUser: await env.getUserWallet(dstChainId).tokenBalance(dstWXTZ.address),
-                dstResolverUSDC: await env.getResolverWallet(dstChainId).tokenBalance(dstUSDC.address),
-                dstResolverWXTZ: await env.getResolverWallet(dstChainId).tokenBalance(dstWXTZ.address)
+                dstResolverContractUSDC: await env
+                    .getUserWallet(dstChainId)
+                    .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId)),
+                dstResolverContractWXTZ: await env
+                    .getUserWallet(dstChainId)
+                    .tokenBalanceOf(dstWXTZ.address, env.getEtherlinkResolver().getAddress(dstChainId))
             }
 
             // Create order USDC -> WXTZ (different tokens, swap needed)
@@ -160,7 +171,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             console.log('Created USDC -> WXTZ cross-chain order with swap')
 
             // Execute deploySrc flow
-            const {orderHash, dstImmutables, deployedAt} = await env.executeDeploySrc(order, secret)
+            const {dstImmutables} = await env.executeDeploySrc(order)
 
             // Execute deployDst on Etherlink with USDC -> WXTZ swap
             console.log(`[${dstChainId}] Deploying destination escrow with USDC -> WXTZ swap`)
@@ -185,13 +196,14 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             // Execute withdraws
             // 1. Withdraw on destination (user gets WXTZ on Etherlink - no additional swap)
             const {txHash: dstWithdrawHash} = await env.withdrawDst(
-                secret
+                secret,
+                dstDeployedAt
                 // No swap config - user wants WXTZ as ordered
             )
             console.log(`[${dstChainId}] User withdrew WXTZ in tx ${dstWithdrawHash}`)
 
             // 2. Withdraw on source with reverse swap (resolver gets USDC back)
-            const {txHash: srcWithdrawHash} = await env.withdrawSrc(dstImmutables, secret, dstDeployedAt, {
+            const {txHash: srcWithdrawHash} = await env.withdrawSrc(secret, dstDeployedAt, {
                 fromToken: dstWXTZ.address, // Resolver received WXTZ from escrow
                 toToken: dstUSDC.address, // But wants USDC back
                 amount: order.takingAmount,
@@ -199,24 +211,33 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
             })
             console.log(`[${srcChainId}] Resolver withdrew with WXTZ -> USDC reverse swap in tx ${srcWithdrawHash}`)
 
-            // Verify final balances
+            // Verify final balances (check resolver CONTRACT balances)
             const finalBalances = {
                 srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                srcResolver: await env.getResolverWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
+                srcResolverContract: await env
+                    .getUserWallet(srcChainId)
+                    .tokenBalanceOf(
+                        getToken(srcChainId, 'USDC').address,
+                        env.getEtherlinkResolver().getAddress(srcChainId)
+                    ),
                 dstUser: await env.getUserWallet(dstChainId).tokenBalance(dstWXTZ.address),
-                dstResolverUSDC: await env.getResolverWallet(dstChainId).tokenBalance(dstUSDC.address),
-                dstResolverWXTZ: await env.getResolverWallet(dstChainId).tokenBalance(dstWXTZ.address)
+                dstResolverContractUSDC: await env
+                    .getUserWallet(dstChainId)
+                    .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId)),
+                dstResolverContractWXTZ: await env
+                    .getUserWallet(dstChainId)
+                    .tokenBalanceOf(dstWXTZ.address, env.getEtherlinkResolver().getAddress(dstChainId))
             }
 
             // User transferred USDC from src, received WXTZ on dst
             expect(initialBalances.srcUser - finalBalances.srcUser).toBe(order.makingAmount)
             expect(finalBalances.dstUser - initialBalances.dstUser).toBe(order.takingAmount)
 
-            // Resolver gained USDC on src
-            expect(finalBalances.srcResolver - initialBalances.srcResolver).toBe(order.makingAmount)
+            // Resolver CONTRACT gained USDC on src
+            expect(finalBalances.srcResolverContract - initialBalances.srcResolverContract).toBe(order.makingAmount)
 
-            // Resolver should have approximately same USDC on dst (allowing for slippage)
-            const resolverUSDCDiff = finalBalances.dstResolverUSDC - initialBalances.dstResolverUSDC
+            // Resolver CONTRACT should have approximately same USDC on dst (allowing for slippage)
+            const resolverUSDCDiff = finalBalances.dstResolverContractUSDC - initialBalances.dstResolverContractUSDC
             const maxSlippageLoss = (BigInt(order.takingAmount) * 5n) / 100n // 5% max loss
             expect(resolverUSDCDiff).toBeGreaterThan(-maxSlippageLoss)
 
@@ -234,10 +255,12 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 const etherlinkResolver = env.getEtherlinkResolver()
                 const dstUSDC = getToken(dstChainId, 'USDC')
 
-                // Record initial balances
+                // Record initial balances (check resolver CONTRACT balances)
                 const initialBalances = {
                     srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                    dstResolver: await env.getResolverWallet(dstChainId).tokenBalance(dstUSDC.address)
+                    dstResolverContract: await env
+                        .getUserWallet(dstChainId)
+                        .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId))
                 }
 
                 // Create order: USDC -> USDC
@@ -251,7 +274,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 console.log('Created USDC -> USDC order for cancel test')
 
                 // Execute deploySrc
-                const {dstImmutables} = await env.executeDeploySrc(order, secret)
+                const {dstImmutables} = await env.executeDeploySrc(order)
 
                 // Execute deployDst (no swap needed)
                 const dstResolverWallet = env.getResolverWallet(dstChainId)
@@ -261,13 +284,10 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 console.log(`[${dstChainId}] Destination escrow deployed`)
 
                 // Calculate escrow addresses
-                const {srcEscrowAddress, dstEscrowAddress} = await env.calculateEscrowAddresses(
-                    dstImmutables,
-                    dstDeployedAt
-                )
+                const {srcEscrowAddress, dstEscrowAddress} = await env.calculateEscrowAddresses(dstDeployedAt)
 
                 // Simulate timeout
-                await increaseTime(env.getProviders(), 125)
+                await env.increaseTime(125)
                 console.log('Timeout reached - proceeding with cancellation')
 
                 // Cancel destination escrow (no swap needed)
@@ -292,14 +312,16 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 const {txHash: cancelSrcHash} = await srcResolverWallet.send(cancelSrcTx)
                 console.log(`[${srcChainId}] Cancelled src escrow in tx ${cancelSrcHash}`)
 
-                // Verify balances are restored
+                // Verify balances are restored (check resolver CONTRACT balances)
                 const finalBalances = {
                     srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                    dstResolver: await env.getResolverWallet(dstChainId).tokenBalance(dstUSDC.address)
+                    dstResolverContract: await env
+                        .getUserWallet(dstChainId)
+                        .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId))
                 }
 
                 expect(finalBalances.srcUser).toBe(initialBalances.srcUser)
-                expect(finalBalances.dstResolver).toBe(initialBalances.dstResolver)
+                expect(finalBalances.dstResolverContract).toBe(initialBalances.dstResolverContract)
 
                 console.log('USDC -> USDC cancel completed successfully without swaps')
             })
@@ -322,11 +344,15 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 const dstUSDC = getToken(dstChainId, 'USDC')
                 const dstWXTZ = getToken(dstChainId, 'WXTZ')
 
-                // Record initial balances
+                // Record initial balances (check resolver CONTRACT balances)
                 const initialBalances = {
                     srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                    dstResolverUSDC: await env.getResolverWallet(dstChainId).tokenBalance(dstUSDC.address),
-                    dstResolverWXTZ: await env.getResolverWallet(dstChainId).tokenBalance(dstWXTZ.address)
+                    dstResolverContractUSDC: await env
+                        .getUserWallet(dstChainId)
+                        .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId)),
+                    dstResolverContractWXTZ: await env
+                        .getUserWallet(dstChainId)
+                        .tokenBalanceOf(dstWXTZ.address, env.getEtherlinkResolver().getAddress(dstChainId))
                 }
 
                 // Create order: USDC -> WXTZ
@@ -340,7 +366,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 console.log('Created USDC -> WXTZ order for cancel with reverse swap test')
 
                 // Execute deploySrc
-                const {dstImmutables} = await env.executeDeploySrc(order, secret)
+                const {dstImmutables} = await env.executeDeploySrc(order)
 
                 // Execute deployDst WITH SWAP (USDC -> WXTZ)
                 console.log(`[${dstChainId}] Deploying destination escrow with USDC -> WXTZ swap`)
@@ -358,13 +384,10 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 console.log(`[${dstChainId}] Destination escrow with swap deployed`)
 
                 // Calculate escrow addresses
-                const {srcEscrowAddress, dstEscrowAddress} = await env.calculateEscrowAddresses(
-                    dstImmutables,
-                    dstDeployedAt
-                )
+                const {srcEscrowAddress, dstEscrowAddress} = await env.calculateEscrowAddresses(dstDeployedAt)
 
                 // Simulate timeout
-                await increaseTime(env.getProviders(), 125)
+                await env.increaseTime(125)
                 console.log('Timeout reached - proceeding with cancellation and reverse swap')
 
                 // Cancel destination escrow WITH REVERSE SWAP (WXTZ -> USDC)
@@ -397,22 +420,28 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
                 const {txHash: cancelSrcHash} = await srcResolverWallet.send(cancelSrcTx)
                 console.log(`[${srcChainId}] Cancelled src escrow in tx ${cancelSrcHash}`)
 
-                // Verify final balances
+                // Verify final balances (check resolver CONTRACT balances)
                 const finalBalances = {
                     srcUser: await env.getUserWallet(srcChainId).tokenBalance(getToken(srcChainId, 'USDC').address),
-                    dstResolverUSDC: await env.getResolverWallet(dstChainId).tokenBalance(dstUSDC.address),
-                    dstResolverWXTZ: await env.getResolverWallet(dstChainId).tokenBalance(dstWXTZ.address)
+                    dstResolverContractUSDC: await env
+                        .getUserWallet(dstChainId)
+                        .tokenBalanceOf(dstUSDC.address, env.getEtherlinkResolver().getAddress(dstChainId)),
+                    dstResolverContractWXTZ: await env
+                        .getUserWallet(dstChainId)
+                        .tokenBalanceOf(dstWXTZ.address, env.getEtherlinkResolver().getAddress(dstChainId))
                 }
 
                 // User should get their USDC back
                 expect(finalBalances.srcUser).toBe(initialBalances.srcUser)
 
-                // Resolver should have approximately the same USDC (allowing for slippage)
-                const resolverUSDCDiff = finalBalances.dstResolverUSDC - initialBalances.dstResolverUSDC
+                // Resolver CONTRACT should have approximately the same USDC (allowing for slippage)
+                const resolverUSDCDiff = finalBalances.dstResolverContractUSDC - initialBalances.dstResolverContractUSDC
                 const maxSlippageLoss = (BigInt(order.takingAmount) * 5n) / 100n
 
                 expect(resolverUSDCDiff).toBeGreaterThan(-maxSlippageLoss)
-                console.log(`Resolver USDC difference: ${resolverUSDCDiff.toString()} (within acceptable slippage)`)
+                console.log(
+                    `Resolver CONTRACT USDC difference: ${resolverUSDCDiff.toString()} (within acceptable slippage)`
+                )
 
                 // Verify transaction contained swap calls
                 expect(cancelDstTx.data).toBeDefined()
@@ -424,7 +453,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
     })
 
     describe('Integration verification', () => {
-        it.skip('should verify EtherlinkResolver swap detection and token support', async () => {
+        it('should verify EtherlinkResolver swap detection and token support', async () => {
             const etherlinkResolver = env.getEtherlinkResolver()
             const usdcToken = getToken(dstChainId, 'USDC')
             const wxtzToken = getToken(dstChainId, 'WXTZ')
