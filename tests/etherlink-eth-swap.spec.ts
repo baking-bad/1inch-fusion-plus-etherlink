@@ -26,7 +26,7 @@ describe.skip('Etherlink to ETH Cross-Chain Tests', () => {
         await env.initChains()
 
         // Create EtherlinkResolver with real API
-        env.createEtherlinkResolver(srcChainId, ['WETH', 'WXTZ'], srcChainConfig.etherlinkApiUrl)
+        env.createEtherlinkResolver(srcChainId, ['WETH', 'WXTZ'], srcChainConfig.etherlinkApiUrl, dstChainConfig.etherlinkApiKey)
     })
 
     afterAll(async () => {

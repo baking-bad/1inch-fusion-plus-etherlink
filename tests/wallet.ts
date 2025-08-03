@@ -77,7 +77,7 @@ export class Wallet {
             gasLimit: 10_000_000
         })
 
-        await tx.wait()
+        await tx.wait(1, 5000)
     }
 
     public async approveToken(token: string, spender: string, amount: bigint): Promise<void> {
@@ -86,7 +86,7 @@ export class Wallet {
             data: '0x095ea7b3' + coder.encode(['address', 'uint256'], [spender.toString(), amount]).slice(2)
         })
 
-        await tx.wait()
+        await tx.wait(1, 5000)
     }
 
     public async signOrder(srcChainId: number, order: Sdk.CrossChainOrder): Promise<string> {

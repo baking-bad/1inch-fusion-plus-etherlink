@@ -6,7 +6,7 @@ import {getChainConfig, getToken, testConfig} from './config'
 import {TestEnvironment, increaseTime} from './test-utils/chain-utils'
 
 jest.setTimeout(testConfig.timeoutMs)
-
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms * 1000))
 // Test configuration
 const srcChainId = Sdk.NetworkEnum.ETHEREUM
 const dstChainId = 128123 // Etherlink Testnet
@@ -22,7 +22,12 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
         await env.initAllChains([srcChainId, dstChainId])
 
         // Create EtherlinkResolver
-        env.createEtherlinkResolver(dstChainId, ['USDC', 'WXTZ'], dstChainConfig.etherlinkApiUrl)
+        env.createEtherlinkResolver(
+            dstChainId,
+            ['USDC', 'WXTZ'],
+            dstChainConfig.etherlinkApiUrl,
+            dstChainConfig.etherlinkApiKey
+        )
     })
 
     afterAll(async () => {
@@ -192,7 +197,7 @@ describe('ETH to Etherlink Cross-Chain Tests', () => {
 
             // Wait for finality lock to pass
             await increaseTime(env.getProviders(), 15)
-
+            // await delay(15)
             // Execute withdraws
             // 1. Withdraw on destination (user gets WXTZ on Etherlink - no additional swap)
             const {txHash: dstWithdrawHash} = await env.withdrawDst(
