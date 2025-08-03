@@ -535,6 +535,10 @@ export class TestEnvironment {
         }
     }
 
+    async increaseTime(seconds: number): Promise<void> {
+        await increaseTime(this.getProviders(), seconds)
+    }
+
     /**
      * Calculate escrow addresses for withdraw operations
      */
