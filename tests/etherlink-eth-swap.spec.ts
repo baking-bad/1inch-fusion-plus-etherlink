@@ -16,7 +16,8 @@ const dstChainId = Sdk.NetworkEnum.ETHEREUM
 const srcChainConfig = getChainConfig(srcChainId)
 const dstChainConfig = getChainConfig(dstChainId)
 
-describe('Etherlink to ETH Cross-Chain Tests', () => {
+//There is no LOP contract at Etherlink testnet
+describe.skip('Etherlink to ETH Cross-Chain Tests', () => {
     let env: TestEnvironment
 
     beforeAll(async () => {
@@ -97,9 +98,9 @@ describe('Etherlink to ETH Cross-Chain Tests', () => {
             const USDC_AMOUNT = 1 // 2 USDC for the quote and order
             const FEE_PERCENTAGE = 0.98 // 2% fee
 
-            // await env.setupUserBalances(srcChainId, [{token: 'USDC', amount: USDC_AMOUNT}])
-            // await env.setupResolverBalances(dstChainId, [{token: 'WETH', amount: 10}])
-            // await env.setupResolverContractBalances(dstChainId, [{token: 'WETH', amount: 5}])
+            await env.setupUserBalances(srcChainId, [{token: 'USDC', amount: USDC_AMOUNT}])
+            await env.setupResolverBalances(dstChainId, [{token: 'WETH', amount: 10}])
+            await env.setupResolverContractBalances(dstChainId, [{token: 'WETH', amount: 5}])
             const dstChain = env.getDstChain()
             const etherlinkResolver = env.getEtherlinkResolver()
             const dstChainResolver = env.getResolverWallet(dstChainId)
