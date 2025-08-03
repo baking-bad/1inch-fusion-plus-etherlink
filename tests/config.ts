@@ -206,7 +206,7 @@ export const config: Record<number, ChainConfig> = {
             XTZ: {
                 address: '0x0000000000000000000000000000000000000000',
                 isNative: true,
-                donor: '0x0000000000000000000000000000000000000000', // No donor needed on mainnet
+                donor: '0xc9B53AB2679f573e480d01e0f49e2B5CFB7a3EAb',
                 decimals: 18
             },
             // Wrapped XTZ
@@ -220,7 +220,7 @@ export const config: Record<number, ChainConfig> = {
             USDC: {
                 address: '0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9',
                 isNative: false,
-                donor: '0x659fe227A739D7961F3c7bBc090ea9BfAFCC2A74',
+                donor: '0xA237E96Abc3180AF377EcF22aE590C02991f9b1F',
                 decimals: 6
             },
             // USDT on Etherlink Mainnet

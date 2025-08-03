@@ -8,7 +8,8 @@ const CUSTOM_SUPPORTED_CHAINS = new Set([
     56, // BSC
     137, // Polygon
     42161, // Arbitrum
-    128123 // Etherlink Testnet
+    128123, // Etherlink Testnet,
+    42793 // Etherlink Mainnet
 ])
 
 // TRUE_ERC20 addresses for our custom chains
