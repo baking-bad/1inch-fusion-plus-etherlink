@@ -4,6 +4,7 @@
   "description": "Example of 1inch cross chain resolver",
   "scripts": {
     "test": "forge build && node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
+    "test:main_scenario": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js -t 'should swap USDC to WXTZ using API integration and complete withdraw'",
     "lint": "eslint  \"tests/**/*.ts\""
   },
   "devDependencies": {
