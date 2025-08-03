@@ -17,11 +17,11 @@ const ConfigSchema = z.object({
     BSC_CHAIN_CREATE_FORK: bool.default('true'),
 
     // Etherlink
-    ETHERLINK_CHAIN_RPC: z.string().url(),
+    TEST_ETHERLINK_CHAIN_RPC: z.string().url(),
     ETHERLINK_CHAIN_CREATE_FORK: bool.default('true'),
     ETHERLINK_ROUTER_ADDRESS: z.string().default('0x0000000000000000000000000000000000000000'),
-    ETHERLINK_API_URL: z.string().default('https://api.etherlink.your-domain.com'),
-    ETHERLINK_API_KEY: z.string().default(''),
+    TEST_ETHERLINK_API_URL: z.string().default('https://api.etherlink.your-domain.com'),
+    TEST_ETHERLINK_API_KEY: z.string().default(''),
 
     // Test keys
     TEST_ETH_USER_PK: z.string().default('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'),
@@ -120,7 +120,7 @@ export const config: Record<number, ChainConfig> = {
     [128123]: {
         chainId: 128123,
         name: 'Etherlink Testnet',
-        url: fromEnv.ETHERLINK_CHAIN_RPC,
+        url: fromEnv.TEST_ETHERLINK_CHAIN_RPC,
         createFork: fromEnv.ETHERLINK_CHAIN_CREATE_FORK,
         limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65',
         wrappedNative: '0xB1Ea698633d57705e93b0E40c1077d46CD6A51d8',
@@ -130,8 +130,8 @@ export const config: Record<number, ChainConfig> = {
 
         // Etherlink specific
         etherlinkRouter: fromEnv.ETHERLINK_ROUTER_ADDRESS,
-        etherlinkApiUrl: fromEnv.ETHERLINK_API_URL,
-        etherlinkApiKey: fromEnv.ETHERLINK_API_KEY,
+        etherlinkApiUrl: fromEnv.TEST_ETHERLINK_API_URL,
+        etherlinkApiKey: fromEnv.TEST_ETHERLINK_API_KEY,
 
         tokens: {
             // Native XTZ on Etherlink
