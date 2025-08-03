@@ -82,11 +82,9 @@ describe.skip('Etherlink to ETH Cross-Chain Tests', () => {
             console.log('Executing withdraw flow...')
 
             // User withdraws on destination (no swap needed)
-            await env.withdrawDst(dstImmutables, secret, deployedAt)
+            await env.withdrawDst(secret, deployedAt)
 
-            // Resolver withdraws on source (no swap needed)
-            const srcImmutables = dstImmutables // For this case, we can use the same immutables
-            await env.withdrawSrc(srcImmutables, secret, deployedAt)
+            await env.withdrawSrc(secret, deployedAt)
 
             console.log('WETH -> WETH transfer and withdraw completed without swap')
         })
@@ -145,7 +143,7 @@ describe.skip('Etherlink to ETH Cross-Chain Tests', () => {
             console.log('Created Etherlink USDC -> ETH WETH cross-chain order with real API pricing')
 
             // Step 3: Execute deploySrc flow on Etherlink
-            const {orderHash, dstImmutables, deployedAt} = await env.executeDeploySrc(order, secret)
+            const {dstImmutables, deployedAt} = await env.executeDeploySrc(order, secret)
 
             // Step 4: Execute deployDst on Ethereum (no swap needed - resolver has WETH)
             console.log(`[${dstChainId}] Deploying destination escrow for WETH`)
@@ -165,11 +163,10 @@ describe.skip('Etherlink to ETH Cross-Chain Tests', () => {
             await increaseTime(env.getProviders(), 15)
 
             // User withdraws WETH on destination (no swap needed)
-            await env.withdrawDst(dstImmutables, secret, deployedAt)
+            await env.withdrawDst(secret, deployedAt)
 
-            // Resolver withdraws USDC on source and swaps to preferred token (WETH)
-            const srcImmutables = dstImmutables // We'll need to reconstruct the source immutables properly
-            const {txHash} = await env.withdrawSrc(srcImmutables, secret, deployedAt, {
+
+            const {txHash} = await env.withdrawSrc(secret, deployedAt, {
                 fromToken: srcUSDC.address, // received USDC from escrow
                 toToken: srcWETH.address, // resolver prefers WETH
                 amount: order.makingAmount, // amount of USDC to swap

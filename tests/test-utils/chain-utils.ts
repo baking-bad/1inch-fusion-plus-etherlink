@@ -9,7 +9,7 @@ import {
     randomBytes,
     Wallet as SignerWallet
 } from 'ethers'
-import Sdk from '@1inch/cross-chain-sdk'
+import Sdk, {DstImmutablesComplement, Immutables} from '@1inch/cross-chain-sdk'
 import {uint8ArrayToHex, UINT_40_MAX} from '@1inch/byte-utils'
 import assert from 'node:assert'
 
@@ -51,7 +51,7 @@ export class TestEnvironment {
 
     private readonly dstChainId: number
 
-    private dstDeployedAt?: bigint // Store deployed timestamp
+    private srcEscrowEvent?: [Immutables, DstImmutablesComplement]
 
     constructor(srcChainId: number, dstChainId: number) {
         this.srcChainId = srcChainId
@@ -480,14 +480,11 @@ export class TestEnvironment {
     /**
      * Execute deploySrc flow and return context for deployDst
      */
-    async executeDeploySrc(
-        order: Sdk.CrossChainOrder,
-        secret: string
-    ): Promise<{
+    async executeDeploySrc(order: Sdk.CrossChainOrder): Promise<{
         orderHash: string
         srcTxHash: string
-        dstImmutables: Sdk.Immutables
         deployedAt: bigint
+        dstImmutables: Immutables
     }> {
         const srcChainResolver = this.getResolverWallet(this.srcChainId)
         const etherlinkResolver = this.getEtherlinkResolver()
@@ -520,18 +517,18 @@ export class TestEnvironment {
 
         // Get escrow data
         const srcEscrowEvent = await this.getEscrowFactory(this.srcChainId).getSrcDeployEvent(srcDeployBlock)
+
+        this.srcEscrowEvent = srcEscrowEvent
+
         const dstImmutables = srcEscrowEvent[0]
             .withComplement(srcEscrowEvent[1])
             .withTaker(new Sdk.Address(etherlinkResolver.getAddress(this.dstChainId)))
 
-        // Store deployed timestamp for later use
-        this.dstDeployedAt = blockTimestamp
-
         return {
             orderHash,
             srcTxHash: orderFillHash,
-            dstImmutables,
-            deployedAt: blockTimestamp
+            deployedAt: blockTimestamp,
+            dstImmutables
         }
     }
 
@@ -542,10 +539,7 @@ export class TestEnvironment {
     /**
      * Calculate escrow addresses for withdraw operations
      */
-    private async calculateEscrowAddresses(
-        dstImmutables: Sdk.Immutables,
-        deployedAt: bigint
-    ): Promise<{
+    async calculateEscrowAddresses(dstDeployedAt: bigint): Promise<{
         srcEscrowAddress: string
         dstEscrowAddress: string
     }> {
@@ -556,33 +550,17 @@ export class TestEnvironment {
         const ESCROW_SRC_IMPLEMENTATION = await this.getEscrowFactory(this.srcChainId).getSourceImpl()
         const ESCROW_DST_IMPLEMENTATION = await this.getEscrowFactory(this.dstChainId).getDestinationImpl()
 
-        // For src escrow, we need the base immutables (without complement)
-        const srcImmutables = Sdk.Immutables.new({
-            orderHash: dstImmutables.orderHash,
-            hashLock: dstImmutables.hashLock,
-            maker: dstImmutables.maker,
-            taker: dstImmutables.taker,
-            token: dstImmutables.token,
-            amount: dstImmutables.amount,
-            safetyDeposit: dstImmutables.safetyDeposit,
-            timeLocks: dstImmutables.timeLocks
-        })
-
+        const escrowEvent = this.srcEscrowEvent!
         const srcEscrowAddress = new Sdk.EscrowFactory(new Sdk.Address(srcChain.escrowFactory)).getSrcEscrowAddress(
-            srcImmutables,
+            escrowEvent[0],
             ESCROW_SRC_IMPLEMENTATION
         )
 
         // For dst escrow, we need the complement data
         const dstEscrowAddress = new Sdk.EscrowFactory(new Sdk.Address(dstChain.escrowFactory)).getDstEscrowAddress(
-            srcImmutables, // base immutables
-            Sdk.DstImmutablesComplement.new({
-                maker: dstImmutables.maker, // This should be the dst user
-                amount: dstImmutables.amount, // This should be the dst amount
-                token: dstImmutables.token, // This should be the dst token
-                safetyDeposit: dstImmutables.safetyDeposit
-            }),
-            deployedAt,
+            escrowEvent[0],
+            escrowEvent[1],
+            dstDeployedAt,
             new Sdk.Address(etherlinkResolver.getAddress(this.dstChainId)),
             ESCROW_DST_IMPLEMENTATION
         )
@@ -597,9 +575,8 @@ export class TestEnvironment {
      * Execute withdraw on destination chain
      */
     async withdrawDst(
-        dstImmutables: Sdk.Immutables,
         secret: string,
-        deployedAt?: bigint,
+        dstDeployedAt: bigint,
         swapConfig?: {
             fromToken: string // token address received from escrow
             toToken: string // preferred token address
@@ -610,13 +587,18 @@ export class TestEnvironment {
         txHash: string
         escrowAddress: string
     }> {
-        const timestamp = deployedAt || this.dstDeployedAt || BigInt(Math.floor(Date.now() / 1000))
-        const {dstEscrowAddress} = await this.calculateEscrowAddresses(dstImmutables, timestamp)
+        const {dstEscrowAddress} = await this.calculateEscrowAddresses(dstDeployedAt)
 
         const dstChainResolver = this.getResolverWallet(this.dstChainId)
         const etherlinkResolver = this.getEtherlinkResolver()
 
         console.log(`[${this.dstChainId}] Withdrawing funds for user from ${dstEscrowAddress}`)
+        const srcEscrowEvent = this.srcEscrowEvent!
+
+        const dstImmutables = srcEscrowEvent[0]
+            .withComplement(srcEscrowEvent[1])
+            .withTaker(new Sdk.Address(etherlinkResolver.getAddress(this.dstChainId)))
+            .withDeployedAt(dstDeployedAt)
 
         let withdrawTx
 
@@ -655,9 +637,8 @@ export class TestEnvironment {
      * Execute withdraw on source chain
      */
     async withdrawSrc(
-        srcImmutables: Sdk.Immutables,
         secret: string,
-        deployedAt?: bigint,
+        dstDeployedAt: bigint,
         swapConfig?: {
             fromToken: string // token address received from escrow
             toToken: string // preferred token address
@@ -668,8 +649,7 @@ export class TestEnvironment {
         txHash: string
         escrowAddress: string
     }> {
-        const timestamp = deployedAt || this.dstDeployedAt || BigInt(Math.floor(Date.now() / 1000))
-        const {srcEscrowAddress} = await this.calculateEscrowAddresses(srcImmutables, timestamp)
+        const {srcEscrowAddress} = await this.calculateEscrowAddresses(dstDeployedAt)
 
         const srcChainResolver = this.getResolverWallet(this.srcChainId)
         const etherlinkResolver = this.getEtherlinkResolver()
@@ -677,6 +657,7 @@ export class TestEnvironment {
         console.log(`[${this.srcChainId}] Withdrawing funds for resolver from ${srcEscrowAddress}`)
 
         let withdrawTx
+        const srcImmutables = this.srcEscrowEvent![0]
 
         if (swapConfig) {
             // Withdraw with swap
