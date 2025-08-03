@@ -208,7 +208,8 @@ export class TestEnvironment {
     createEtherlinkResolver(
         etherlinkChainId: number,
         supportedTokenSymbols: string[],
-        apiUrl: string
+        apiUrl: string,
+        apiKey?: string
     ): EtherlinkResolver {
         const addresses: Record<number, string> = {}
 
@@ -227,7 +228,7 @@ export class TestEnvironment {
             }
         }
 
-        this.etherlinkResolver = new EtherlinkResolver(addresses, supportedTokens, apiUrl)
+        this.etherlinkResolver = new EtherlinkResolver(addresses, supportedTokens, apiUrl, apiKey)
 
         return this.etherlinkResolver
     }

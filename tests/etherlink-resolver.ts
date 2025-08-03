@@ -15,10 +15,15 @@ export class EtherlinkResolver extends Resolver {
 
     private readonly apiClient: AggregatorApiClient
 
-    constructor(addresses: ResolverAddresses, supportedTokens: TokenConfig, aggregatorApiUrl: string) {
+    constructor(
+        addresses: ResolverAddresses,
+        supportedTokens: TokenConfig,
+        aggregatorApiUrl: string,
+        aggregatorApiKey?: string
+    ) {
         super(addresses)
         this.supportedTokens = supportedTokens
-        this.apiClient = new AggregatorApiClient(aggregatorApiUrl)
+        this.apiClient = new AggregatorApiClient(aggregatorApiUrl, aggregatorApiKey)
     }
 
     public needsSwap(tokenIn: string, tokenOut: string): boolean {
@@ -132,11 +137,7 @@ export class EtherlinkResolver extends Resolver {
             calls.push(approveCall, swapCall)
         }
 
-        const escrowApproveCall = await this.prepareApproveCall(
-            dstToken,
-            dstEscrowFactory,
-            BigInt(amount)
-        )
+        const escrowApproveCall = await this.prepareApproveCall(dstToken, dstEscrowFactory, BigInt(amount))
         calls.push(escrowApproveCall)
 
         return this.deployDst(order, immutables, calls)

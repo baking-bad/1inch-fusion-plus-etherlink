@@ -56,8 +56,23 @@ export interface SwapParamsResponse {
 export class AggregatorApiClient {
     private readonly baseUrl: string
 
-    constructor(baseUrl: string) {
+    private readonly apiKey?: string
+
+    constructor(baseUrl: string, apiKey?: string) {
         this.baseUrl = baseUrl.replace(/\/$/, '') // remove trailing slash
+        this.apiKey = apiKey
+    }
+
+    private getHeaders(): HeadersInit {
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json'
+        }
+
+        if (this.apiKey) {
+            headers['Authorization'] = `Bearer ${this.apiKey}`
+        }
+
+        return headers
     }
 
     async quote(request: QuoteRequest): Promise<QuoteResponse> {
@@ -89,7 +104,13 @@ export class AggregatorApiClient {
 
         if (request.includeGas) params.append('includeGas', 'true')
 
-        const response = await fetch(`${this.baseUrl}/quote?${params}`)
+        const url = `${this.baseUrl}/quote?${params}`
+        console.log('Quote API request:', url)
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: this.getHeaders()
+        })
 
         if (!response.ok) {
             const errorText = await response.text()
@@ -131,9 +152,12 @@ export class AggregatorApiClient {
         if (request.isExactOutput) params.append('isExactOutput', request.isExactOutput ? 'true' : 'false')
 
         const url = `${this.baseUrl}/swap_params?${params}`
-        console.log('Requested url', url)
+        console.log('SwapParams API request:', url)
 
-        const response = await fetch(url)
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: this.getHeaders()
+        })
 
         if (!response.ok) {
             const errorText = await response.text()

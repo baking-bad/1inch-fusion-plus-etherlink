@@ -16,12 +16,19 @@ const ConfigSchema = z.object({
     BSC_CHAIN_RPC: z.string().default(''),
     BSC_CHAIN_CREATE_FORK: bool.default('true'),
 
-    // Etherlink
+    // Etherlink Testnet
     TEST_ETHERLINK_CHAIN_RPC: z.string().url(),
     TEST_ETHERLINK_CHAIN_CREATE_FORK: bool.default('true'),
     TEST_ETHERLINK_ROUTER_ADDRESS: z.string().default('0x0000000000000000000000000000000000000000'),
-    TEST_ETHERLINK_API_URL: z.string().default('https://api.etherlink.your-domain.com'),
+    TEST_ETHERLINK_API_URL: z.string().default('https://api.3route.io'),
     TEST_ETHERLINK_API_KEY: z.string().default(''),
+
+    // Etherlink Mainnet
+    ETHERLINK_MAINNET_RPC: z.string().url().default('https://node.mainnet.etherlink.com'),
+    ETHERLINK_MAINNET_CREATE_FORK: bool.default('false'),
+    ETHERLINK_MAINNET_ROUTER_ADDRESS: z.string().default('0x0000000000000000000000000000000000000000'),
+    ETHERLINK_MAINNET_API_URL: z.string().default('https://api.3route.io'),
+    ETHERLINK_MAINNET_API_KEY: z.string().default(''),
 
     // Test keys
     TEST_ETH_USER_PK: z.string().default('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d'),
@@ -35,6 +42,12 @@ const ConfigSchema = z.object({
         .string()
         .default('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'),
     TEST_ETHERLINK_OWNER_PK: z.string().default('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'),
+
+    // Mainnet keys (for demo)
+    MAINNET_ETHERLINK_USER_PK: z.string().default(''),
+    MAINNET_ETHERLINK_RESOLVER_PK: z.string().default(''),
+    MAINNET_ETHERLINK_OWNER_PK: z.string().default(''),
+
     TEST_TIMEOUT_MS: z.string().transform(Number).default('180000')
 })
 
@@ -169,6 +182,76 @@ export const config: Record<number, ChainConfig> = {
                 decimals: 18
             }
         }
+    },
+
+    // Etherlink Mainnet
+    [42793]: {
+        chainId: 42793,
+        name: 'Etherlink Mainnet',
+        url: fromEnv.ETHERLINK_MAINNET_RPC,
+        createFork: fromEnv.ETHERLINK_MAINNET_CREATE_FORK,
+        limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65', // Will need actual LOP address
+        wrappedNative: '0xc9b53ab2679f573e480d01e0f49e2b5cfb7a3eab', // WXTZ address
+        ownerPk: fromEnv.MAINNET_ETHERLINK_OWNER_PK || fromEnv.TEST_ETHERLINK_OWNER_PK,
+        userPk: fromEnv.MAINNET_ETHERLINK_USER_PK || fromEnv.TEST_ETHERLINK_USER_PK,
+        resolverPk: fromEnv.MAINNET_ETHERLINK_RESOLVER_PK || fromEnv.TEST_ETHERLINK_RESOLVER_PK,
+
+        // Etherlink specific
+        etherlinkRouter: fromEnv.ETHERLINK_MAINNET_ROUTER_ADDRESS,
+        etherlinkApiUrl: fromEnv.ETHERLINK_MAINNET_API_URL,
+        etherlinkApiKey: fromEnv.ETHERLINK_MAINNET_API_KEY,
+
+        tokens: {
+            // Native XTZ on Etherlink Mainnet
+            XTZ: {
+                address: '0x0000000000000000000000000000000000000000',
+                isNative: true,
+                donor: '0x0000000000000000000000000000000000000000', // No donor needed on mainnet
+                decimals: 18
+            },
+            // Wrapped XTZ
+            WXTZ: {
+                address: '0xc9b53ab2679f573e480d01e0f49e2b5cfb7a3eab',
+                isNative: false,
+                donor: '0xA237E96Abc3180AF377EcF22aE590C02991f9b1F',
+                decimals: 18
+            },
+            // USDC on Etherlink Mainnet
+            USDC: {
+                address: '0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9',
+                isNative: false,
+                donor: '0x659fe227A739D7961F3c7bBc090ea9BfAFCC2A74',
+                decimals: 6
+            },
+            // USDT on Etherlink Mainnet
+            USDT: {
+                address: '0x2C03058C8AFC06713be23e58D2febC8337dbfE6A',
+                isNative: false,
+                donor: '0xbB6AF5Cb8Bb12129AA051A96B25a94f33c117557',
+                decimals: 6
+            },
+            // WETH on Etherlink Mainnet
+            WETH: {
+                address: '0xfc24f770F94edBca6D6f885E12d4317320BcB401',
+                isNative: false,
+                donor: '0xd03b92A27947Bb08dD269107d4Df00F8ab53Fc28',
+                decimals: 18
+            },
+            // WBTC on Etherlink Mainnet
+            WBTC: {
+                address: '0xbFc94CD2B1E55999Cfc7347a9313e88702B83d0F',
+                isNative: false,
+                donor: '0xF0cDE65d6899b13d20508FD071B331A86B57a13d',
+                decimals: 8
+            },
+            // WBNB on Etherlink Mainnet
+            WBNB: {
+                address: '0xaA40A1cc1561c584B675cbD12F1423A32E2a0d8C',
+                isNative: false,
+                donor: '0xaA40A1cc1561c584B675cbD12F1423A32E2a0d8C',
+                decimals: 18
+            }
+        }
     }
 } as const
 
@@ -205,6 +288,6 @@ export function getSupportedChains(): number[] {
 
 export function getEtherlinkChains(): number[] {
     return Object.entries(config)
-        .filter(([_, cfg]) => cfg.etherlinkRouter)
+        .filter(([_, cfg]) => cfg.etherlinkRouter !== undefined)
         .map(([chainId]) => Number(chainId))
 }
