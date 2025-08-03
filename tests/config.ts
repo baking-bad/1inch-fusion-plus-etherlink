@@ -44,9 +44,9 @@ const ConfigSchema = z.object({
     TEST_ETHERLINK_OWNER_PK: z.string().default('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'),
 
     // Mainnet keys (for demo)
-    MAINNET_ETHERLINK_USER_PK: z.string().default(''),
-    MAINNET_ETHERLINK_RESOLVER_PK: z.string().default(''),
-    MAINNET_ETHERLINK_OWNER_PK: z.string().default(''),
+    ETHERLINK_MAINNET_USER_PK: z.string().default(''),
+    ETHERLINK_MAINNET_RESOLVER_PK: z.string().default(''),
+    ETHERLINK_MAINNET_OWNER_PK: z.string().default(''),
 
     TEST_TIMEOUT_MS: z.string().transform(Number).default('180000')
 })
@@ -192,9 +192,9 @@ export const config: Record<number, ChainConfig> = {
         createFork: fromEnv.ETHERLINK_MAINNET_CREATE_FORK,
         limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65', // Will need actual LOP address
         wrappedNative: '0xc9b53ab2679f573e480d01e0f49e2b5cfb7a3eab', // WXTZ address
-        ownerPk: fromEnv.MAINNET_ETHERLINK_OWNER_PK || fromEnv.TEST_ETHERLINK_OWNER_PK,
-        userPk: fromEnv.MAINNET_ETHERLINK_USER_PK || fromEnv.TEST_ETHERLINK_USER_PK,
-        resolverPk: fromEnv.MAINNET_ETHERLINK_RESOLVER_PK || fromEnv.TEST_ETHERLINK_RESOLVER_PK,
+        ownerPk: fromEnv.ETHERLINK_MAINNET_OWNER_PK || fromEnv.TEST_ETHERLINK_OWNER_PK,
+        userPk: fromEnv.ETHERLINK_MAINNET_USER_PK || fromEnv.TEST_ETHERLINK_USER_PK,
+        resolverPk: fromEnv.ETHERLINK_MAINNET_RESOLVER_PK || fromEnv.TEST_ETHERLINK_RESOLVER_PK,
 
         // Etherlink specific
         etherlinkRouter: fromEnv.ETHERLINK_MAINNET_ROUTER_ADDRESS,
